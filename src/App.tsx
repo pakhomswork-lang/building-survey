@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { getUserProfile, type UserProfile } from './db'
+import { ProfileForm } from './ProfileForm'
 
 type StorageStatus = 'checking' | 'persistent' | 'not-persistent' | 'unsupported'
 
@@ -19,10 +21,16 @@ async function requestPersistentStorage(): Promise<StorageStatus> {
 
 function App() {
   const [storage, setStorage] = useState<StorageStatus>('checking')
+  // undefined — ещё загружаем, null — профиль не заполнен
+  const [profile, setProfile] = useState<UserProfile | null | undefined>(undefined)
 
   useEffect(() => {
     requestPersistentStorage().then(setStorage)
+    getUserProfile().then(setProfile)
   }, [])
+
+  if (profile === undefined) return null
+  if (profile === null) return <ProfileForm onSaved={setProfile} />
 
   return (
     <main style={{ padding: 16 }}>
@@ -30,7 +38,10 @@ function App() {
       <p style={{ margin: 0, color: 'var(--text-muted)' }}>
         Фото и данные обследования, привязанные к точкам на листах.
       </p>
-      <p style={{ marginTop: 16, fontSize: 14, color: 'var(--text-muted)' }}>{storageText[storage]}</p>
+      <p style={{ marginTop: 16, fontSize: 14, color: 'var(--text-muted)' }}>
+        Вы: {profile.name} (код {profile.code})
+      </p>
+      <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>{storageText[storage]}</p>
     </main>
   )
 }

@@ -119,12 +119,45 @@ export async function newRecordFields(): Promise<SyncFields> {
   return { id: crypto.randomUUID(), authorId: await getUserId(), createdAt: now, updatedAt: now, deleted: false }
 }
 
-/** Уникальное имя файла фото, например 20261028_221438_1sr8.jpg. */
-export function makePhotoFileName(date = new Date(), ext = 'jpg'): string {
+/** Кто работает на этом устройстве. */
+export interface UserProfile {
+  id: string
+  /** Имя для людей, например «Пахомов И.». */
+  name: string
+  /** Короткий код автора латиницей, стоит в начале имени каждого фото (Р-18). */
+  code: string
+}
+
+/** Код автора: 2–5 латинских букв или цифр. */
+export const USER_CODE_PATTERN = /^[A-Z0-9]{2,5}$/
+
+/** Профиль пользователя или null, если он ещё не заполнен. */
+export async function getUserProfile(): Promise<UserProfile | null> {
+  const [name, code] = await Promise.all([db.settings.get('userName'), db.settings.get('userCode')])
+  if (!name || !code) return null
+  return { id: await getUserId(), name: name.value, code: code.value }
+}
+
+export async function saveUserProfile(name: string, code: string): Promise<UserProfile> {
+  if (!USER_CODE_PATTERN.test(code)) throw new Error('Код: 2–5 латинских букв или цифр')
+  await db.settings.bulkPut([
+    { key: 'userName', value: name },
+    { key: 'userCode', value: code },
+  ])
+  return { id: await getUserId(), name, code }
+}
+
+/**
+ * Уникальное имя файла фото, например PAH_20261028_221438_1sr8.jpg:
+ * код автора, дата и время съёмки, 4 случайных символа.
+ * Дата вместо счётчика нужна потому, что счётчик начнётся заново после
+ * переустановки приложения, и имена повторятся.
+ */
+export function makePhotoFileName(userCode: string, date = new Date(), ext = 'jpg'): string {
   const p = (n: number) => String(n).padStart(2, '0')
   const stamp =
     `${date.getFullYear()}${p(date.getMonth() + 1)}${p(date.getDate())}` +
     `_${p(date.getHours())}${p(date.getMinutes())}${p(date.getSeconds())}`
   const rand = Math.random().toString(36).slice(2, 6).padEnd(4, '0')
-  return `${stamp}_${rand}.${ext}`
+  return `${userCode}_${stamp}_${rand}.${ext}`
 }
