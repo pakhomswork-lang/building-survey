@@ -28,7 +28,9 @@ export default defineConfig({
       },
       workbox: {
         // всё нужное для работы без интернета кладём в кэш заранее
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        // .mjs — фоновый поток pdf.js для чтения PDF (около 1,3 МБ), лимит подняли с запасом
+        globPatterns: ['**/*.{js,mjs,css,html,ico,png,svg}'],
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
       },
     }),
   ],

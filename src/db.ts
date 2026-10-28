@@ -66,6 +66,8 @@ export interface Photo extends SyncFields {
 export interface SheetImage {
   sheetId: string
   blob: Blob
+  /** Маленькая копия для списка листов. */
+  thumb: Blob
   /** Размер картинки в пикселях. */
   width: number
   height: number
@@ -128,7 +130,7 @@ export async function createProject(name: string): Promise<Project> {
 /** Кто работает на этом устройстве. */
 export interface UserProfile {
   id: string
-  /** Имя для людей, например «Пахомов И.». */
+  /** Имя для людей, например «Иванов И.». */
   name: string
   /** Короткий код автора латиницей, стоит в начале имени каждого фото (Р-18). */
   code: string
@@ -154,7 +156,7 @@ export async function saveUserProfile(name: string, code: string): Promise<UserP
 }
 
 /**
- * Уникальное имя файла фото, например PAH_20261028_221438_1sr8.jpg:
+ * Уникальное имя файла фото, например IVA_20261028_221438_1sr8.jpg:
  * код автора, дата и время съёмки, 4 случайных символа.
  * Дата вместо счётчика нужна потому, что счётчик начнётся заново после
  * переустановки приложения, и имена повторятся.

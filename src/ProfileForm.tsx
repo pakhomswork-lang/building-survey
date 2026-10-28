@@ -7,7 +7,7 @@ const TRANSLIT: Record<string, string> = {
   х: 'H', ц: 'C', ч: 'CH', ш: 'SH', щ: 'SH', ы: 'Y', э: 'E', ю: 'YU', я: 'YA',
 }
 
-/** Подсказка кода по имени: «Пахомов И.» → PAH. */
+/** Подсказка кода по имени: «Иванов И.» → IVA. */
 function suggestCode(name: string): string {
   const latin = [...name.toLowerCase()].map(ch => TRANSLIT[ch] ?? ch.toUpperCase()).join('')
   return latin.replace(/[^A-Z0-9]/g, '').slice(0, 3)
@@ -38,7 +38,7 @@ export function ProfileForm({ onSaved }: { onSaved: (profile: UserProfile) => vo
       <form onSubmit={submit}>
         <label>
           Имя
-          <input style={fieldStyle} value={name} onChange={e => setName(e.target.value)} placeholder="Например, Пахомов И." autoFocus />
+          <input style={fieldStyle} value={name} onChange={e => setName(e.target.value)} placeholder="Например, Иванов И." autoFocus />
         </label>
         <label>
           Код для имён фото (2–5 латинских букв или цифр)
@@ -50,7 +50,7 @@ export function ProfileForm({ onSaved }: { onSaved: (profile: UserProfile) => vo
               setCode(e.target.value.toUpperCase())
             }}
             maxLength={5}
-            placeholder="PAH"
+            placeholder="IVA"
           />
         </label>
         <p style={{ margin: '0 0 16px', fontSize: 14, color: codeValid || !shownCode ? 'var(--text-muted)' : '#d9534f' }}>
