@@ -119,6 +119,12 @@ export async function newRecordFields(): Promise<SyncFields> {
   return { id: crypto.randomUUID(), authorId: await getUserId(), createdAt: now, updatedAt: now, deleted: false }
 }
 
+export async function createProject(name: string): Promise<Project> {
+  const project: Project = { ...(await newRecordFields()), name }
+  await db.projects.add(project)
+  return project
+}
+
 /** Кто работает на этом устройстве. */
 export interface UserProfile {
   id: string

@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { getUserProfile, type UserProfile } from './db'
 import { ProfileForm } from './ProfileForm'
+import { ProjectList } from './ProjectList'
+import { ProjectScreen } from './ProjectScreen'
+import { navigate, useHashRoute } from './useHashRoute'
 
 type StorageStatus = 'checking' | 'persistent' | 'not-persistent' | 'unsupported'
 
@@ -23,6 +26,7 @@ function App() {
   const [storage, setStorage] = useState<StorageStatus>('checking')
   // undefined — ещё загружаем, null — профиль не заполнен
   const [profile, setProfile] = useState<UserProfile | null | undefined>(undefined)
+  const route = useHashRoute()
 
   useEffect(() => {
     requestPersistentStorage().then(setStorage)
@@ -33,15 +37,18 @@ function App() {
   if (profile === null) return <ProfileForm onSaved={setProfile} />
 
   return (
-    <main style={{ padding: 16 }}>
-      <h1 style={{ fontSize: 22, margin: '0 0 4px' }}>Обследование</h1>
-      <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-        Фото и данные обследования, привязанные к точкам на листах.
-      </p>
-      <p style={{ marginTop: 16, fontSize: 14, color: 'var(--text-muted)' }}>
-        Вы: {profile.name} (код {profile.code})
-      </p>
-      <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>{storageText[storage]}</p>
+    <main className="screen">
+      {route.screen === 'project' ? (
+        <ProjectScreen projectId={route.projectId} onBack={() => history.back()} />
+      ) : (
+        <>
+          <h1 style={{ fontSize: 22, margin: '0 0 16px' }}>Обследование</h1>
+          <ProjectList onOpen={projectId => navigate({ screen: 'project', projectId })} />
+          <p className="muted" style={{ marginTop: 24, fontSize: 13 }}>
+            Вы: {profile.name} (код {profile.code}). {storageText[storage]}
+          </p>
+        </>
+      )}
     </main>
   )
 }

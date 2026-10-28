@@ -17,3 +17,59 @@
 body {
   margin: 0;
 }
+
+.screen {
+  padding: 16px;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.field {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+}
+
+.btn {
+  padding: 12px 16px;
+  font-size: 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+}
+
+.btn-link {
+  padding: 8px 0;
+  font-size: 16px;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.card {
+  display: block;
+  width: 100%;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  text-align: left;
+  font-size: 16px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
