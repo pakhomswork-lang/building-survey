@@ -127,6 +127,13 @@ export async function createProject(name: string): Promise<Project> {
   return project
 }
 
+/** Новая точка на листе. x и y — в процентах от ширины и высоты листа. */
+export async function createPoint(projectId: string, sheetId: string, x: number, y: number): Promise<Point> {
+  const point: Point = { ...(await newRecordFields()), projectId, sheetId, x, y, comment: '', roomId: null }
+  await db.points.add(point)
+  return point
+}
+
 /** Кто работает на этом устройстве. */
 export interface UserProfile {
   id: string

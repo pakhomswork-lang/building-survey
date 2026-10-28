@@ -1,15 +1,14 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { db } from './db'
+import { useObjectUrl } from './useObjectUrl'
 import { importSheets } from './sheetImport'
+import { navigate } from './useHashRoute'
 
-/** Превью листа из базы. Ссылку на картинку освобождаем, когда превью пропадает с экрана. */
+/** Превью листа из базы. */
 function SheetThumb({ sheetId }: { sheetId: string }) {
   const thumb = useLiveQuery(async () => (await db.sheetImages.get(sheetId))?.thumb, [sheetId])
-  const url = useMemo(() => thumb && URL.createObjectURL(thumb), [thumb])
-  useEffect(() => () => {
-    if (url) URL.revokeObjectURL(url)
-  }, [url])
+  const url = useObjectUrl(thumb)
   return (
     <div style={{ width: 72, height: 72, flex: 'none', borderRadius: 6, background: '#eee', overflow: 'hidden' }}>
       {url && <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />}
@@ -64,10 +63,15 @@ export function SheetList({ projectId }: { projectId: string }) {
         <p className="muted">Листов пока нет. Многостраничный PDF превратится в несколько листов.</p>
       )}
       {sheets?.map(s => (
-        <div key={s.id} className="card" style={{ display: 'flex', gap: 12, alignItems: 'center', cursor: 'default' }}>
+        <button
+          key={s.id}
+          className="card"
+          style={{ display: 'flex', gap: 12, alignItems: 'center' }}
+          onClick={() => navigate({ screen: 'sheet', sheetId: s.id })}
+        >
           <SheetThumb sheetId={s.id} />
           <span>{s.name}</span>
-        </div>
+        </button>
       ))}
     </section>
   )

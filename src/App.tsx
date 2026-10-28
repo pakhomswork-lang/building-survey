@@ -3,6 +3,7 @@ import { getUserProfile, type UserProfile } from './db'
 import { ProfileForm } from './ProfileForm'
 import { ProjectList } from './ProjectList'
 import { ProjectScreen } from './ProjectScreen'
+import { SheetViewer } from './SheetViewer'
 import { navigate, useHashRoute } from './useHashRoute'
 
 type StorageStatus = 'checking' | 'persistent' | 'not-persistent' | 'unsupported'
@@ -35,6 +36,8 @@ function App() {
 
   if (profile === undefined) return null
   if (profile === null) return <ProfileForm onSaved={setProfile} />
+
+  if (route.screen === 'sheet') return <SheetViewer sheetId={route.sheetId} onBack={() => history.back()} />
 
   return (
     <main className="screen">
