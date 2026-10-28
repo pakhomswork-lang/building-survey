@@ -77,6 +77,8 @@ export interface SheetImage {
 export interface PhotoFile {
   fileName: string
   blob: Blob
+  /** Маленькая копия для списков. */
+  thumb: Blob
 }
 
 /** Настройки устройства: кто пользователь и т. п. */

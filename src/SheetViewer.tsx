@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState } from 'react'
-import { createPoint, db } from './db'
+import { createPoint, db, type PhotoType } from './db'
+import { PointPanel } from './PointPanel'
 import { usePanZoom, type Tap } from './usePanZoom'
 import { useObjectUrl } from './useObjectUrl'
 
@@ -17,6 +18,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
 
   const [adding, setAdding] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [photoType, setPhotoType] = useState<PhotoType>('general')
 
   // размер области под лист: от него зависит, каким лист будет «вписан в экран»
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -134,16 +136,13 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
         </div>
 
         {selected && (
-          <div style={{ position: 'absolute', zIndex: 1, left: 0, right: 0, bottom: 0, padding: 12, background: 'var(--surface)', borderTop: '1px solid #ddd' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <strong>Точка {selectedIndex + 1}</strong>
-              <button className="btn-link" style={{ padding: 0 }} onClick={() => setSelectedId(null)}>Закрыть</button>
-            </div>
-            <div className="muted" style={{ fontSize: 13 }}>
-              поставлена {new Date(selected.createdAt).toLocaleString('ru-RU')}
-            </div>
-            <p className="muted" style={{ fontSize: 14, marginBottom: 0 }}>Съёмка фото появится в шаге 7.</p>
-          </div>
+          <PointPanel
+            point={selected}
+            number={selectedIndex + 1}
+            photoType={photoType}
+            onPhotoTypeChange={setPhotoType}
+            onClose={() => setSelectedId(null)}
+          />
         )}
       </div>
     </div>
