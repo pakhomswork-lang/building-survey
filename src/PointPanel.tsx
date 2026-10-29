@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useRef, useState } from 'react'
 import { db, PHOTO_TYPES, type PhotoType, type Point } from './db'
 import { CameraView } from './CameraView'
+import { getFolder, hasFolderPermission } from './photoFolder'
 import { savePhoto } from './photos'
 import { useObjectUrl } from './useObjectUrl'
 
@@ -53,6 +54,12 @@ export function PointPanel({
   }
 
   const [cameraOpen, setCameraOpen] = useState(false)
+
+  function openCamera() {
+    setCameraOpen(true)
+    // нажатие на кнопку — удобный момент попросить доступ к папке, чтобы фото сразу туда писались
+    getFolder().then(folder => folder && hasFolderPermission(folder, true)).catch(() => {})
+  }
 
   /** Снимок встроенной камеры: сохраняем в фоне, камера остаётся открытой. */
   function onCameraShot(blob: Blob, type: PhotoType) {
@@ -117,7 +124,7 @@ export function PointPanel({
         hidden
         onChange={e => onFiles(e.target.files)}
       />
-      <button className="btn" style={{ width: '100%' }} onClick={() => setCameraOpen(true)}>
+      <button className="btn" style={{ width: '100%' }} onClick={openCamera}>
         📷 Камера: {PHOTO_TYPES[photoType]}
       </button>
       <button className="btn-link" style={{ width: '100%', fontSize: 14 }} disabled={saving} onClick={() => camera.current?.click()}>

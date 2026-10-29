@@ -79,12 +79,20 @@ export interface PhotoFile {
   blob: Blob
   /** Маленькая копия для списков. */
   thumb: Blob
+  /** Фото уже записано в папку телефона (Р-21). */
+  savedToFolder?: boolean
 }
 
 /** Настройки устройства: кто пользователь и т. п. */
 export interface Setting {
   key: string
   value: string
+}
+
+/** Доступ к папке телефона. Браузер разрешает хранить его в базе. */
+export interface FolderRecord {
+  key: string
+  handle: FileSystemDirectoryHandle
 }
 
 export const db = new Dexie('building-survey') as Dexie & {
@@ -95,6 +103,7 @@ export const db = new Dexie('building-survey') as Dexie & {
   sheetImages: EntityTable<SheetImage, 'sheetId'>
   photoFiles: EntityTable<PhotoFile, 'fileName'>
   settings: EntityTable<Setting, 'key'>
+  folders: EntityTable<FolderRecord, 'key'>
 }
 
 // Здесь перечислены только поля, по которым ищем. Остальные поля хранятся и так.
@@ -106,6 +115,11 @@ db.version(1).stores({
   sheetImages: 'sheetId',
   photoFiles: 'fileName',
   settings: 'key',
+})
+
+// v2: доступ к папке телефона, куда сохраняются фото (Р-21)
+db.version(2).stores({
+  folders: 'key',
 })
 
 /** id пользователя этого устройства. Создаётся один раз при первом запуске. */

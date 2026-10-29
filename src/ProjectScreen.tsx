@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from './db'
+import { FolderStatus } from './FolderStatus'
 import { SheetList } from './SheetList'
 
 export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack: () => void }) {
@@ -18,6 +19,7 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
       ) : (
         <>
           <h2 style={{ fontSize: 20, margin: '4px 0 12px' }}>{project.name}</h2>
+          <FolderStatus projectId={projectId} />
           <SheetList projectId={projectId} />
         </>
       )}

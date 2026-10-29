@@ -1,6 +1,7 @@
 // Сохранение снятых фото: уникальное имя с кодом автора (Р-18), запись в базу и превью.
 
 import { db, getUserProfile, makePhotoFileName, newRecordFields, type Photo, type PhotoType, type Point } from './db'
+import { trySaveToFolder } from './photoFolder'
 
 const THUMB_SIDE = 320
 
@@ -42,7 +43,9 @@ export async function savePhoto(point: Point, file: File, type: PhotoType): Prom
   }
   await db.transaction('rw', db.photos, db.photoFiles, async () => {
     await db.photos.add(photo)
-    await db.photoFiles.add({ fileName, blob: file, thumb })
+    await db.photoFiles.add({ fileName, blob: file, thumb, savedToFolder: false })
   })
+  // сразу копируем в папку телефона, если она выбрана и доступ есть; не ждём
+  void trySaveToFolder(fileName)
   return photo
 }
