@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { getUserProfile, type UserProfile } from './db'
 import { ProfileForm } from './ProfileForm'
 import { ProjectList } from './ProjectList'
+import { ProjectPhotos } from './ProjectPhotos'
 import { ProjectScreen } from './ProjectScreen'
 import { SheetViewer } from './SheetViewer'
 import { navigate, useHashRoute } from './useHashRoute'
@@ -44,6 +45,8 @@ function App() {
     <main className="screen">
       {route.screen === 'project' ? (
         <ProjectScreen projectId={route.projectId} onBack={() => history.back()} />
+      ) : route.screen === 'photos' ? (
+        <ProjectPhotos projectId={route.projectId} onBack={() => history.back()} />
       ) : (
         <>
           <h1 style={{ fontSize: 22, margin: '0 0 16px' }}>Обследование</h1>

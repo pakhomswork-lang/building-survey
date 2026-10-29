@@ -59,12 +59,15 @@ export function PhotoView({
   photoId,
   onChange,
   onClose,
+  caption,
 }: {
   /** Фото, между которыми листаем (уже отфильтрованные по вкладке). */
   photos: Photo[]
   photoId: string
   onChange: (photoId: string) => void
   onClose: () => void
+  /** Подпись «где снято», например «План 1 этажа · точка 3». */
+  caption?: (photo: Photo) => string
 }) {
   const index = photos.findIndex(p => p.id === photoId)
   const photo = index >= 0 ? photos[index] : null
@@ -107,6 +110,7 @@ export function PhotoView({
         <button className="btn-link" style={{ color: '#fff' }} onClick={onClose}>←</button>
         <span style={{ flex: 1, fontSize: 14 }}>
           {index + 1} из {photos.length}
+          {caption && ` · ${caption(photo)}`}
         </span>
         <button className="btn-link danger" onClick={remove}>Удалить</button>
       </div>

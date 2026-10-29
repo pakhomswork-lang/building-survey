@@ -6,17 +6,20 @@ import { useEffect, useState } from 'react'
 export type Route =
   | { screen: 'projects' }
   | { screen: 'project'; projectId: string }
+  | { screen: 'photos'; projectId: string }
   | { screen: 'sheet'; sheetId: string }
 
 function parse(hash: string): Route {
   const [, screen, id] = hash.replace(/^#/, '').split('/')
   if (screen === 'project' && id) return { screen: 'project', projectId: id }
+  if (screen === 'photos' && id) return { screen: 'photos', projectId: id }
   if (screen === 'sheet' && id) return { screen: 'sheet', sheetId: id }
   return { screen: 'projects' }
 }
 
 export function navigate(route: Route) {
   if (route.screen === 'project') location.hash = `/project/${route.projectId}`
+  else if (route.screen === 'photos') location.hash = `/photos/${route.projectId}`
   else if (route.screen === 'sheet') location.hash = `/sheet/${route.sheetId}`
   else location.hash = '/'
 }
