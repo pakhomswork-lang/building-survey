@@ -74,6 +74,8 @@ export function PointPanel({
         right: 0,
         bottom: 0,
         padding: 12,
+        // отступ под системные кнопки телефона, чтобы превью фото не прятались за ними
+        paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
         background: 'var(--surface)',
         borderTop: '1px solid #ddd',
       }}

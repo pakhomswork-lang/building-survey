@@ -5,6 +5,7 @@ import { ProjectList } from './ProjectList'
 import { ProjectScreen } from './ProjectScreen'
 import { SheetViewer } from './SheetViewer'
 import { navigate, useHashRoute } from './useHashRoute'
+import { APP_VERSION } from './version'
 
 type StorageStatus = 'checking' | 'persistent' | 'not-persistent' | 'unsupported'
 
@@ -48,7 +49,7 @@ function App() {
           <h1 style={{ fontSize: 22, margin: '0 0 16px' }}>Обследование</h1>
           <ProjectList onOpen={projectId => navigate({ screen: 'project', projectId })} />
           <p className="muted" style={{ marginTop: 24, fontSize: 13 }}>
-            Вы: {profile.name} (код {profile.code}). {storageText[storage]}
+            Вы: {profile.name} (код {profile.code}). {storageText[storage]} Версия от {APP_VERSION}.
           </p>
         </>
       )}
