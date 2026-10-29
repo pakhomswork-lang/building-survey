@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState } from 'react'
-import { createPoint, db, type PhotoType } from './db'
+import { createPoint, db, deleteSheet, type PhotoType } from './db'
 import { PointPanel } from './PointPanel'
 import { usePanZoom, type Tap } from './usePanZoom'
 import { useObjectUrl } from './useObjectUrl'
@@ -70,6 +70,22 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
       <header style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--surface)' }}>
         <button className="btn-link" onClick={onBack}>←</button>
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sheet?.name}</span>
+        <button
+          className="btn-link danger"
+          aria-label="Удалить лист"
+          onClick={async () => {
+            if (!sheet) return
+            const ok = confirm(
+              `Удалить лист «${sheet.name}» со всеми точками и фото?\n\n` +
+                'Фото, уже сохранённые в папку телефона, останутся там.',
+            )
+            if (!ok) return
+            await deleteSheet(sheet.id)
+            onBack()
+          }}
+        >
+          🗑
+        </button>
         <button className="btn" style={{ padding: '8px 12px' }} onClick={() => setAdding(a => !a)}>
           {adding ? 'Отмена' : '+ Точка'}
         </button>

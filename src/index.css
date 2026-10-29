@@ -60,6 +60,10 @@ body {
   cursor: pointer;
 }
 
+.btn-link.danger {
+  color: #d9534f;
+}
+
 .card {
   display: block;
   width: 100%;

@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useRef, useState } from 'react'
-import { db, PHOTO_TYPES, type PhotoType, type Point } from './db'
+import { db, deletePoint, PHOTO_TYPES, type PhotoType, type Point } from './db'
 import { CameraView } from './CameraView'
 import { getFolder, hasFolderPermission } from './photoFolder'
 import { savePhoto } from './photos'
@@ -88,9 +88,27 @@ export function PointPanel({
     >
       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
         <strong>Точка {number}</strong>
-        <button className="btn-link" style={{ padding: 0 }} onClick={onClose}>
-          Закрыть
-        </button>
+        <span style={{ display: 'flex', gap: 16 }}>
+          <button
+            className="btn-link danger"
+            style={{ padding: 0 }}
+            onClick={async () => {
+              const count = photos?.length ?? 0
+              const ok = confirm(
+                `Удалить точку ${number}` + (count ? ` и ${count} фото в ней?` : '?') +
+                  (count ? '\n\nФото, уже сохранённые в папку телефона, останутся там.' : ''),
+              )
+              if (!ok) return
+              await deletePoint(point.id)
+              onClose()
+            }}
+          >
+            Удалить
+          </button>
+          <button className="btn-link" style={{ padding: 0 }} onClick={onClose}>
+            Закрыть
+          </button>
+        </span>
       </div>
       <div className="muted" style={{ fontSize: 13 }}>
         поставлена {new Date(point.createdAt).toLocaleString('ru-RU')}

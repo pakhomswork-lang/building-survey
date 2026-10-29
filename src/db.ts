@@ -150,6 +150,47 @@ export async function createPoint(projectId: string, sheetId: string, x: number,
   return point
 }
 
+// Удаление. Записи не стираем, а помечаем удалёнными, чтобы потом удаление дошло
+// до других устройств (Р-14). Картинки листов и фото внутри приложения стираем,
+// чтобы освободить место. Фото, уже сохранённые в папку телефона, остаются там.
+
+const deletedNow = () => ({ deleted: true, updatedAt: Date.now() })
+
+async function deletePhotosWhere(field: 'projectId' | 'sheetId' | 'pointId', id: string) {
+  const photos = await db.photos.where(field).equals(id).toArray()
+  await db.photos.bulkUpdate(photos.map(p => ({ key: p.id, changes: deletedNow() })))
+  await db.photoFiles.bulkDelete(photos.map(p => p.fileName))
+}
+
+export async function deletePoint(pointId: string) {
+  await db.transaction('rw', db.points, db.photos, db.photoFiles, async () => {
+    await db.points.update(pointId, deletedNow())
+    await deletePhotosWhere('pointId', pointId)
+  })
+}
+
+export async function deleteSheet(sheetId: string) {
+  await db.transaction('rw', [db.sheets, db.sheetImages, db.points, db.photos, db.photoFiles], async () => {
+    await db.sheets.update(sheetId, deletedNow())
+    await db.sheetImages.delete(sheetId)
+    const points = await db.points.where('sheetId').equals(sheetId).primaryKeys()
+    await db.points.bulkUpdate(points.map(key => ({ key, changes: deletedNow() })))
+    await deletePhotosWhere('sheetId', sheetId)
+  })
+}
+
+export async function deleteProject(projectId: string) {
+  await db.transaction('rw', [db.projects, db.sheets, db.sheetImages, db.points, db.photos, db.photoFiles], async () => {
+    await db.projects.update(projectId, deletedNow())
+    const sheets = await db.sheets.where('projectId').equals(projectId).primaryKeys()
+    await db.sheets.bulkUpdate(sheets.map(key => ({ key, changes: deletedNow() })))
+    await db.sheetImages.bulkDelete(sheets)
+    const points = await db.points.where('projectId').equals(projectId).primaryKeys()
+    await db.points.bulkUpdate(points.map(key => ({ key, changes: deletedNow() })))
+    await deletePhotosWhere('projectId', projectId)
+  })
+}
+
 /** Кто работает на этом устройстве. */
 export interface UserProfile {
   id: string
