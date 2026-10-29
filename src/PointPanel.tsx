@@ -2,19 +2,10 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useRef, useState } from 'react'
 import { db, deletePoint, PHOTO_TYPES, type PhotoType, type Point } from './db'
 import { CameraView } from './CameraView'
+import { PhotoGallery } from './PhotoGallery'
+import { PhotoThumb } from './PhotoThumb'
 import { getFolder, hasFolderPermission } from './photoFolder'
 import { savePhoto } from './photos'
-import { useObjectUrl } from './useObjectUrl'
-
-function PhotoThumb({ fileName }: { fileName: string }) {
-  const thumb = useLiveQuery(async () => (await db.photoFiles.get(fileName))?.thumb, [fileName])
-  const url = useObjectUrl(thumb)
-  return (
-    <div style={{ width: 56, height: 56, flex: 'none', borderRadius: 6, background: '#eee', overflow: 'hidden' }}>
-      {url && <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-    </div>
-  )
-}
 
 /** Панель выбранной точки: тип серии, кнопка съёмки и что уже снято. */
 export function PointPanel({
@@ -54,6 +45,7 @@ export function PointPanel({
   }
 
   const [cameraOpen, setCameraOpen] = useState(false)
+  const [galleryOpen, setGalleryOpen] = useState(false)
 
   function openCamera() {
     setCameraOpen(true)
@@ -160,16 +152,24 @@ export function PointPanel({
 
       {photos && photos.length > 0 && (
         <>
-          <div className="muted" style={{ fontSize: 13, margin: '10px 0 6px' }}>
-            {counts.map(c => `${PHOTO_TYPES[c.type]}: ${c.count}`).join(' · ')}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '10px 0 6px' }}>
+            <span className="muted" style={{ fontSize: 13 }}>
+              {counts.map(c => `${PHOTO_TYPES[c.type]}: ${c.count}`).join(' · ')}
+            </span>
+            <button className="btn-link" style={{ padding: 0, fontSize: 14, flex: 'none' }} onClick={() => setGalleryOpen(true)}>
+              Все фото →
+            </button>
           </div>
           <div style={{ display: 'flex', gap: 6, overflowX: 'auto' }}>
             {photos.map(p => (
-              <PhotoThumb key={p.id} fileName={p.fileName} />
+              <button key={p.id} onClick={() => setGalleryOpen(true)} style={{ padding: 0, border: 0, background: 'none' }}>
+                <PhotoThumb fileName={p.fileName} size={56} />
+              </button>
             ))}
           </div>
         </>
       )}
+      {galleryOpen && <PhotoGallery pointId={point.id} title={`Точка ${number}`} onClose={() => setGalleryOpen(false)} />}
     </div>
   )
 }

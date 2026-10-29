@@ -162,6 +162,20 @@ async function deletePhotosWhere(field: 'projectId' | 'sheetId' | 'pointId', id:
   await db.photoFiles.bulkDelete(photos.map(p => p.fileName))
 }
 
+export async function deletePhoto(photoId: string) {
+  const photo = await db.photos.get(photoId)
+  if (!photo) return
+  await db.transaction('rw', db.photos, db.photoFiles, async () => {
+    await db.photos.update(photoId, deletedNow())
+    await db.photoFiles.delete(photo.fileName)
+  })
+}
+
+/** Исправить тип фото, если ошиблись при съёмке. Имя файла не меняется. */
+export async function setPhotoType(photoId: string, type: PhotoType) {
+  await db.photos.update(photoId, { type, updatedAt: Date.now() })
+}
+
 export async function deletePoint(pointId: string) {
   await db.transaction('rw', db.points, db.photos, db.photoFiles, async () => {
     await db.points.update(pointId, deletedNow())
