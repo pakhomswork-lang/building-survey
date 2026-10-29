@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useRef, useState } from 'react'
 import { db, PHOTO_TYPES, type PhotoType, type Point } from './db'
+import { CameraView } from './CameraView'
 import { savePhoto } from './photos'
 import { useObjectUrl } from './useObjectUrl'
 
@@ -49,6 +50,16 @@ export function PointPanel({
       setSaving(false)
       if (camera.current) camera.current.value = ''
     }
+  }
+
+  const [cameraOpen, setCameraOpen] = useState(false)
+
+  /** Снимок встроенной камеры: сохраняем в фоне, камера остаётся открытой. */
+  function onCameraShot(blob: Blob, type: PhotoType) {
+    const file = new File([blob], 'camera.jpg', { type: blob.type || 'image/jpeg', lastModified: Date.now() })
+    savePhoto(point, file, type).catch(e =>
+      setError('Не удалось сохранить фото: ' + (e instanceof Error ? e.message : String(e))),
+    )
   }
 
   const counts = (Object.keys(PHOTO_TYPES) as PhotoType[])
@@ -106,9 +117,20 @@ export function PointPanel({
         hidden
         onChange={e => onFiles(e.target.files)}
       />
-      <button className="btn" style={{ width: '100%' }} disabled={saving} onClick={() => camera.current?.click()}>
-        {saving ? 'Сохраняем…' : `📷 Снять: ${PHOTO_TYPES[photoType]}`}
+      <button className="btn" style={{ width: '100%' }} onClick={() => setCameraOpen(true)}>
+        📷 Камера: {PHOTO_TYPES[photoType]}
       </button>
+      <button className="btn-link" style={{ width: '100%', fontSize: 14 }} disabled={saving} onClick={() => camera.current?.click()}>
+        {saving ? 'Сохраняем…' : 'Обычная камера (лучше качество, по одному снимку)'}
+      </button>
+      {cameraOpen && (
+        <CameraView
+          photoType={photoType}
+          onPhotoTypeChange={onPhotoTypeChange}
+          onShot={onCameraShot}
+          onClose={() => setCameraOpen(false)}
+        />
+      )}
       {error && <p style={{ color: '#d9534f', fontSize: 14 }}>{error}</p>}
 
       {photos && photos.length > 0 && (
