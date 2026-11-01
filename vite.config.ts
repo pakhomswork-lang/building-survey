@@ -35,6 +35,8 @@ export default defineConfig({
         // .mjs — фоновый поток pdf.js для чтения PDF (около 1,3 МБ), лимит подняли с запасом
         globPatterns: ['**/*.{js,mjs,css,html,ico,png,svg,woff2}'],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+        // тестовые страницы (spike/, spike-yandex/) открываются сами, а не подменяются приложением
+        navigateFallbackDenylist: [/\/spike/],
       },
     }),
   ],
