@@ -47,6 +47,12 @@ body {
   cursor: pointer;
 }
 
+.btn-outline {
+  background: var(--surface);
+  color: var(--accent);
+  border: 2px solid var(--accent);
+}
+
 .btn:disabled {
   opacity: 0.5;
 }

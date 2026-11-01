@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { BackupButton } from './BackupButton'
 import { db, deleteProject } from './db'
 import { FolderStatus } from './FolderStatus'
 import { SheetList } from './SheetList'
@@ -29,9 +30,10 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
             </button>
           )}
           <SheetList projectId={projectId} />
+          <BackupButton projectId={projectId} />
           <button
             className="btn-link danger"
-            style={{ marginTop: 24 }}
+            style={{ marginTop: 16 }}
             onClick={async () => {
               const ok = confirm(
                 `Удалить объект «${project.name}» со всеми листами, точками и фото?\n\n` +
