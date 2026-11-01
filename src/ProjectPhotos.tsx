@@ -1,12 +1,15 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { db, PHOTO_TYPES, type Photo, type PhotoType } from './db'
+import { countByType, TYPE_KEYS } from './format'
+import { Icon } from './Icon'
 import { PhotoThumb } from './PhotoThumb'
 import { PhotoView } from './PhotoView'
+import { typeColor } from './typeColor'
 
 type TypeFilter = 'all' | PhotoType
 
-/** Все фото объекта с отбором по листу и типу. */
+/** Все фото объекта с отбором по листу и типу, сгруппированные по точкам. */
 export function ProjectPhotos({ projectId, onBack }: { projectId: string; onBack: () => void }) {
   const data = useLiveQuery(async () => {
     const [project, sheets, points, photos] = await Promise.all([
@@ -23,7 +26,7 @@ export function ProjectPhotos({ projectId, onBack }: { projectId: string; onBack
     }
   }, [projectId])
   const [sheetId, setSheetId] = useState<string>('all')
-  const [chosenType, setType] = useState<TypeFilter>('all')
+  const [type, setType] = useState<TypeFilter>('all')
   const [openId, setOpenId] = useState<string | null>(null)
 
   if (!data) return null
@@ -34,68 +37,82 @@ export function ProjectPhotos({ projectId, onBack }: { projectId: string; onBack
     data.points.filter(p => p.sheetId === s.id).forEach((p, i) => pointNumber.set(p.id, i + 1))
   }
   const sheetName = new Map(data.sheets.map(s => [s.id, s.name]))
-  const caption = (p: Photo) => `${sheetName.get(p.sheetId) ?? '—'} · точка ${pointNumber.get(p.pointId) ?? '—'}`
+  const caption = (p: Photo) => `${sheetName.get(p.sheetId) ?? 'Лист'}, точка ${pointNumber.get(p.pointId) ?? '?'}`
 
   const bySheet = data.photos.filter(p => sheetId === 'all' || p.sheetId === sheetId)
-  const typeTabs: { type: TypeFilter; label: string; count: number }[] = [
-    { type: 'all', label: 'Все', count: bySheet.length },
-    ...(Object.entries(PHOTO_TYPES) as [PhotoType, string][])
-      .map(([type, label]) => ({ type: type as TypeFilter, label, count: bySheet.filter(p => p.type === type).length }))
-      .filter(t => t.count > 0),
-  ]
-  // если в выбранном типе не осталось фото — показываем «Все»
-  const type = typeTabs.some(t => t.type === chosenType) ? chosenType : 'all'
+  const counts = countByType(bySheet)
   const shown = bySheet.filter(p => type === 'all' || p.type === type)
+
+  // группы по точкам в порядке листов и номеров точек
+  const groups = data.sheets.flatMap(s =>
+    data.points
+      .filter(pt => pt.sheetId === s.id)
+      .map(pt => ({ point: pt, photos: shown.filter(ph => ph.pointId === pt.id) }))
+      .filter(g => g.photos.length > 0),
+  )
+  const ordered = groups.flatMap(g => g.photos)
 
   return (
     <section>
-      <button className="btn-link" onClick={onBack}>
-        ← {data.project?.name ?? 'Объект'}
-      </button>
-      <h2 style={{ fontSize: 20, margin: '4px 0 12px' }}>Фото объекта</h2>
+      <div className="page-top">
+        <button className="icon-btn" aria-label="Назад" onClick={onBack}>
+          <Icon name="back" />
+        </button>
+      </div>
+      <h1 className="page-title">Фото объекта</h1>
+      <div className="page-sub">{data.project?.name}</div>
 
-      <select className="field" value={sheetId} onChange={e => setSheetId(e.target.value)} style={{ marginBottom: 10 }}>
-        <option value="all">Все листы</option>
-        {data.sheets.map(s => (
-          <option key={s.id} value={s.id}>
-            {s.name}
-          </option>
-        ))}
-      </select>
+      {data.sheets.length > 1 && (
+        <div className="chips" style={{ marginTop: 12 }}>
+          <button className={'chip dark' + (sheetId === 'all' ? ' on' : '')} onClick={() => setSheetId('all')}>
+            Все листы
+          </button>
+          {data.sheets.map(s => (
+            <button key={s.id} className={'chip dark' + (sheetId === s.id ? ' on' : '')} onClick={() => setSheetId(s.id)}>
+              {s.name}
+            </button>
+          ))}
+        </div>
+      )}
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-        {typeTabs.map(t => (
-          <button
-            key={t.type}
-            onClick={() => setType(t.type)}
-            style={{
-              padding: '6px 10px',
-              fontSize: 14,
-              borderRadius: 16,
-              border: '1px solid var(--accent)',
-              background: t.type === type ? 'var(--accent)' : '#fff',
-              color: t.type === type ? '#fff' : 'var(--accent)',
-            }}
-          >
-            {t.label} {t.count}
+      <div className="chips" style={{ marginTop: 8 }}>
+        <button className={'chip' + (type === 'all' ? ' on' : '')} onClick={() => setType('all')}>
+          Все <em>{bySheet.length}</em>
+        </button>
+        {TYPE_KEYS.map(t => (
+          <button key={t} className={'chip' + (type === t ? ' on' : '')} onClick={() => setType(t)}>
+            <i className="type-dot" style={{ background: typeColor(t) }} />
+            {PHOTO_TYPES[t]}
+            <em>{counts[t]}</em>
           </button>
         ))}
       </div>
 
-      {shown.length === 0 && <p className="muted">Фото нет.</p>}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 6 }}>
-        {shown.map(p => (
-          <button key={p.id} onClick={() => setOpenId(p.id)} style={{ padding: 0, border: 0, background: 'none', textAlign: 'left' }}>
-            <PhotoThumb fileName={p.fileName} size="100%" />
-            <div className="muted" style={{ fontSize: 11, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {caption(p)}
-            </div>
-          </button>
-        ))}
-      </div>
+      {groups.length === 0 && <p className="muted" style={{ marginTop: 24 }}>Фото нет.</p>}
+      {groups.map(({ point, photos }) => (
+        <section key={point.id} className="photo-group">
+          <header>
+            <h2>{caption(photos[0])}</h2>
+            <small>{photos.length} фото</small>
+          </header>
+          <div className="photo-grid">
+            {photos.map(p => (
+              <button
+                key={p.id}
+                className="photo-cell"
+                style={{ '--c': typeColor(p.type) } as CSSProperties}
+                aria-label={PHOTO_TYPES[p.type]}
+                onClick={() => setOpenId(p.id)}
+              >
+                <PhotoThumb fileName={p.fileName} size="100%" radius={0} />
+              </button>
+            ))}
+          </div>
+        </section>
+      ))}
 
       {openId && (
-        <PhotoView photos={shown} photoId={openId} onChange={setOpenId} onClose={() => setOpenId(null)} caption={caption} />
+        <PhotoView photos={ordered} photoId={openId} onChange={setOpenId} onClose={() => setOpenId(null)} caption={caption} />
       )}
     </section>
   )

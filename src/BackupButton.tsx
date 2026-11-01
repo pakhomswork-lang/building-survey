@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { buildProjectBackup, downloadFile } from './backup'
+import { Icon } from './Icon'
 
-/** Кнопка «Резервная копия»: всё по объекту одним архивом в «Загрузки». */
+/** Строка «Резервная копия»: всё по объекту одним архивом в «Загрузки». */
 export function BackupButton({ projectId }: { projectId: string }) {
   const [status, setStatus] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   async function run() {
+    if (busy) return
     setBusy(true)
     try {
       const { blob, fileName, photoCount, missing } = await buildProjectBackup(projectId, setStatus)
@@ -24,15 +26,13 @@ export function BackupButton({ projectId }: { projectId: string }) {
   }
 
   return (
-    <div style={{ marginTop: 24 }}>
-      <button className="btn btn-outline" style={{ width: '100%' }} disabled={busy} onClick={run}>
-        {busy ? 'Готовим архив…' : 'Резервная копия объекта (архив)'}
-      </button>
-      {status && (
-        <p className="muted" style={{ fontSize: 13, margin: '6px 0 0' }}>
-          {status}
-        </p>
-      )}
-    </div>
+    <button className="item" onClick={run}>
+      <Icon name="archive" />
+      <div className="grow">
+        <b>Резервная копия</b>
+        <small>{busy && !status ? 'Готовим архив…' : status ?? 'Архив в «Загрузки»: данные, листы, фото'}</small>
+      </div>
+      <Icon name="right" />
+    </button>
   )
 }

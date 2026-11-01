@@ -1,8 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
+import { Icon } from './Icon'
 import { chooseFolder, folderSupported, getFolder, pendingFileNames, savePendingToFolder } from './photoFolder'
 
-/** Плашка на экране объекта: куда сохраняются фото и сколько ещё не сохранено. */
+/** Строка «Папка для фото» на экране объекта: куда сохраняются фото и сколько ещё не сохранено. */
 export function FolderStatus({ projectId }: { projectId: string }) {
   const folder = useLiveQuery(getFolder)
   const pending = useLiveQuery(() => pendingFileNames(projectId), [projectId])
@@ -15,41 +16,47 @@ export function FolderStatus({ projectId }: { projectId: string }) {
     setTimeout(() => setProgress(null), 3000)
   }
 
-  const box = { padding: 12, marginBottom: 12, borderRadius: 10, fontSize: 14 }
-
   if (!folderSupported) {
-    return <div style={{ ...box, background: '#fff3cd' }}>Этот браузер не умеет сохранять фото в папку. Откройте приложение в Chrome.</div>
-  }
-  if (folder === undefined || pending === undefined) return null
-
-  if (folder === null) {
     return (
-      <div style={{ ...box, background: '#fff3cd' }}>
-        Фото пока хранятся только в приложении.
-        <button className="btn" style={{ display: 'block', width: '100%', marginTop: 8 }} onClick={() => chooseFolder().then(save)}>
-          Выбрать папку на телефоне для фото
-        </button>
+      <div className="item warn">
+        <Icon name="folder" />
+        <div className="grow">
+          <b>Папка для фото</b>
+          <small>Этот браузер не умеет сохранять фото в папку. Откройте приложение в Chrome</small>
+        </div>
       </div>
     )
   }
+  if (folder === undefined || pending === undefined) return null
+
+  // что покажет строка и что сделает нажатие
+  let text: string
+  let warn = false
+  let action: () => void
+  if (progress) {
+    text = progress
+    action = () => {}
+  } else if (folder === null) {
+    text = 'Не выбрана, фото хранятся только в приложении. Нажмите, чтобы выбрать'
+    warn = true
+    action = () => chooseFolder().then(save)
+  } else if (pending.length > 0) {
+    text = `«${folder.name}». Не сохранено: ${pending.length} фото. Нажмите, чтобы сохранить`
+    warn = true
+    action = save
+  } else {
+    text = `«${folder.name}». Все фото сохранены. Нажмите, чтобы сменить папку`
+    action = () => chooseFolder()
+  }
 
   return (
-    <div style={{ ...box, background: pending.length ? '#fff3cd' : 'var(--surface)' }}>
-      <div>
-        Фото сохраняются в папку «{folder.name}».{' '}
-        <button className="btn-link" style={{ padding: 0, fontSize: 14 }} onClick={() => chooseFolder()}>
-          Сменить
-        </button>
+    <button className={'item' + (warn ? ' warn' : '')} onClick={action}>
+      <Icon name="folder" />
+      <div className="grow">
+        <b>Папка для фото</b>
+        <small>{text}</small>
       </div>
-      {progress ? (
-        <div className="muted" style={{ marginTop: 6 }}>{progress}</div>
-      ) : (
-        pending.length > 0 && (
-          <button className="btn" style={{ display: 'block', width: '100%', marginTop: 8 }} onClick={save}>
-            Сохранить в папку: {pending.length} фото
-          </button>
-        )
-      )}
-    </div>
+      <Icon name="right" />
+    </button>
   )
 }

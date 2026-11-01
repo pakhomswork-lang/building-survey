@@ -1,65 +1,106 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useState } from 'react'
 import { BackupButton } from './BackupButton'
 import { db, deleteProject, renameProject } from './db'
 import { FolderStatus } from './FolderStatus'
+import { plural } from './format'
+import { Icon } from './Icon'
 import { SheetList } from './SheetList'
 import { navigate } from './useHashRoute'
 
 export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack: () => void }) {
   // null — объект не найден, undefined — ещё загружаем
   const project = useLiveQuery(async () => (await db.projects.get(projectId)) ?? null, [projectId])
-  const photoCount =
-    useLiveQuery(async () => (await db.photos.where('projectId').equals(projectId).toArray()).filter(p => !p.deleted).length, [projectId]) ?? 0
+  const counts = useLiveQuery(async () => {
+    const [sheets, photos] = await Promise.all([
+      db.sheets.where('projectId').equals(projectId).toArray(),
+      db.photos.where('projectId').equals(projectId).toArray(),
+    ])
+    return { sheets: sheets.filter(s => !s.deleted).length, photos: photos.filter(p => !p.deleted).length }
+  }, [projectId])
+  const [menuOpen, setMenuOpen] = useState(false)
 
   if (project === undefined) return null
 
+  if (project === null || project.deleted) {
+    return (
+      <section>
+        <div className="page-top">
+          <button className="icon-btn" aria-label="Назад" onClick={onBack}>
+            <Icon name="back" />
+          </button>
+        </div>
+        <p className="muted">Объект не найден.</p>
+      </section>
+    )
+  }
+
+  async function rename() {
+    setMenuOpen(false)
+    const name = prompt('Новое название объекта', project!.name)?.trim()
+    if (name && name !== project!.name) await renameProject(projectId, name)
+  }
+
+  async function remove() {
+    setMenuOpen(false)
+    const ok = confirm(
+      `Удалить объект «${project!.name}» со всеми листами, точками и фото?\n\n` +
+        'Фото, уже сохранённые в папку телефона, останутся там.',
+    )
+    if (!ok) return
+    await deleteProject(projectId)
+    onBack()
+  }
+
   return (
     <section>
-      <button className="btn-link" onClick={onBack}>
-        ← Объекты
-      </button>
-      {project === null || project.deleted ? (
-        <p className="muted">Объект не найден.</p>
-      ) : (
+      <div className="page-top">
+        <button className="icon-btn" aria-label="Назад" onClick={onBack}>
+          <Icon name="back" />
+        </button>
+        <span className="spacer" />
+        <button className="icon-btn" aria-label="Переименовать или удалить объект" onClick={() => setMenuOpen(o => !o)}>
+          <Icon name="more" />
+        </button>
+      </div>
+
+      {menuOpen && (
         <>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, margin: '4px 0 12px' }}>
-            <h2 style={{ fontSize: 20, margin: 0, flex: 1 }}>{project.name}</h2>
-            <button
-              className="btn-link"
-              style={{ padding: 0, flex: 'none' }}
-              onClick={async () => {
-                const name = prompt('Новое название объекта', project.name)?.trim()
-                if (name && name !== project.name) await renameProject(projectId, name)
-              }}
-            >
+          <div className="menu-scrim" onClick={() => setMenuOpen(false)} />
+          <div className="type-menu" style={{ top: 52, right: 12, left: 'auto', bottom: 'auto' }}>
+            <button onClick={rename}>
+              <Icon name="edit" />
               Переименовать
             </button>
-          </div>
-          <FolderStatus projectId={projectId} />
-          {photoCount > 0 && (
-            <button className="btn" style={{ width: '100%', marginBottom: 12 }} onClick={() => navigate({ screen: 'photos', projectId })}>
-              Все фото объекта ({photoCount})
+            <button style={{ color: 'var(--danger)' }} onClick={remove}>
+              <Icon name="trash" />
+              Удалить объект
             </button>
-          )}
-          <SheetList projectId={projectId} />
-          <BackupButton projectId={projectId} />
-          <button
-            className="btn-link danger"
-            style={{ marginTop: 16 }}
-            onClick={async () => {
-              const ok = confirm(
-                `Удалить объект «${project.name}» со всеми листами, точками и фото?\n\n` +
-                  'Фото, уже сохранённые в папку телефона, останутся там.',
-              )
-              if (!ok) return
-              await deleteProject(projectId)
-              onBack()
-            }}
-          >
-            Удалить объект
-          </button>
+          </div>
         </>
       )}
+
+      <h1 className="page-title">{project.name}</h1>
+      {counts && (
+        <div className="page-sub">
+          {plural(counts.sheets, 'лист', 'листа', 'листов')}, {counts.photos} фото
+        </div>
+      )}
+
+      <SheetList projectId={projectId} />
+
+      <div className="list" style={{ marginTop: 24 }}>
+        <button className="item" onClick={() => navigate({ screen: 'photos', projectId })}>
+          <Icon name="images" />
+          <div className="grow">
+            <b>Все фото объекта</b>
+            <small>Отбор по листу и типу</small>
+          </div>
+          <Icon name="right" />
+        </button>
+        <FolderStatus projectId={projectId} />
+        <BackupButton projectId={projectId} />
+      </div>
     </section>
   )
 }

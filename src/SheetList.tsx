@@ -1,25 +1,25 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useRef, useState } from 'react'
 import { db } from './db'
-import { useObjectUrl } from './useObjectUrl'
+import { countByType, plural } from './format'
+import { Icon } from './Icon'
 import { importSheets } from './sheetImport'
+import { MixBar, SheetPreview } from './SheetPreview'
 import { navigate } from './useHashRoute'
 
-/** Превью листа из базы. */
-function SheetThumb({ sheetId }: { sheetId: string }) {
-  const thumb = useLiveQuery(async () => (await db.sheetImages.get(sheetId))?.thumb, [sheetId])
-  const url = useObjectUrl(thumb)
-  return (
-    <div style={{ width: 72, height: 72, flex: 'none', borderRadius: 6, background: '#eee', overflow: 'hidden' }}>
-      {url && <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />}
-    </div>
-  )
-}
-
+/** Листы объекта карточками по два в ряд и кнопка «Добавить лист». */
 export function SheetList({ projectId }: { projectId: string }) {
-  const sheets = useLiveQuery(async () => {
-    const all = await db.sheets.where('projectId').equals(projectId).sortBy('order')
-    return all.filter(s => !s.deleted)
+  const data = useLiveQuery(async () => {
+    const [sheets, points, photos] = await Promise.all([
+      db.sheets.where('projectId').equals(projectId).sortBy('order'),
+      db.points.where('projectId').equals(projectId).toArray(),
+      db.photos.where('projectId').equals(projectId).toArray(),
+    ])
+    return {
+      sheets: sheets.filter(s => !s.deleted),
+      points: points.filter(p => !p.deleted),
+      photos: photos.filter(p => !p.deleted),
+    }
   }, [projectId])
   const fileInput = useRef<HTMLInputElement>(null)
   const [progress, setProgress] = useState<string | null>(null)
@@ -48,31 +48,38 @@ export function SheetList({ projectId }: { projectId: string }) {
         hidden
         onChange={e => onFiles(e.target.files)}
       />
-      <button
-        className="btn"
-        style={{ width: '100%', marginBottom: 8 }}
-        disabled={progress !== null}
-        onClick={() => fileInput.current?.click()}
-      >
-        {progress ? 'Загружаем…' : '+ Добавить листы (PDF или фото)'}
+
+      {data && data.sheets.length > 0 && (
+        <div className="sheet-cards">
+          {data.sheets.map(s => {
+            const points = data.points.filter(p => p.sheetId === s.id).length
+            const photos = data.photos.filter(p => p.sheetId === s.id)
+            return (
+              <button key={s.id} className="sheet-card" onClick={() => navigate({ screen: 'sheet', sheetId: s.id })}>
+                <SheetPreview sheetId={s.id} height={92} />
+                <div className="meta">
+                  <b>{s.name}</b>
+                  <small>{points ? `${plural(points, 'точка', 'точки', 'точек')}, ${photos.length} фото` : 'Точек нет'}</small>
+                  <MixBar counts={countByType(photos)} />
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {data?.sheets.length === 0 && !progress && (
+        <p className="muted" style={{ fontSize: 14, margin: '16px 0 0' }}>
+          Листов пока нет. Загрузите PDF или фото плана. Многостраничный PDF превратится в несколько листов.
+        </p>
+      )}
+
+      <button className="secondary-btn" style={{ marginTop: 8 }} disabled={progress !== null} onClick={() => fileInput.current?.click()}>
+        <Icon name="file" />
+        {progress ? 'Загружаем…' : 'Добавить лист: PDF или фото'}
       </button>
       {progress && <p className="muted" style={{ fontSize: 14 }}>{progress}</p>}
-      {error && <p style={{ color: '#d9534f', fontSize: 14 }}>{error}</p>}
-
-      {sheets?.length === 0 && !progress && (
-        <p className="muted">Листов пока нет. Многостраничный PDF превратится в несколько листов.</p>
-      )}
-      {sheets?.map(s => (
-        <button
-          key={s.id}
-          className="card"
-          style={{ display: 'flex', gap: 12, alignItems: 'center' }}
-          onClick={() => navigate({ screen: 'sheet', sheetId: s.id })}
-        >
-          <SheetThumb sheetId={s.id} />
-          <span>{s.name}</span>
-        </button>
-      ))}
+      {error && <p style={{ color: 'var(--danger)', fontSize: 14 }}>{error}</p>}
     </section>
   )
 }

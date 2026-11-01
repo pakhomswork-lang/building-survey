@@ -13,7 +13,7 @@ function suggestCode(name: string): string {
   return latin.replace(/[^A-Z0-9]/g, '').slice(0, 3)
 }
 
-const fieldStyle = { display: 'block', width: '100%', padding: 12, fontSize: 16, margin: '4px 0 12px', borderRadius: 8, border: '1px solid #ccc' }
+const fieldStyle = { margin: '6px 0 16px' }
 
 export function ProfileForm({
   onSaved,
@@ -39,9 +39,10 @@ export function ProfileForm({
   }
 
   return (
-    <main style={{ padding: 16, maxWidth: 480 }}>
-      <h1 style={{ fontSize: 22, margin: '0 0 4px' }}>{current ? 'Профиль' : 'Кто вы?'}</h1>
-      <p style={{ margin: '0 0 16px', color: 'var(--text-muted)' }}>
+    <main className="page" style={{ maxWidth: 480 }}>
+      <div className="page-top" />
+      <h1 className="page-title">{current ? 'Профиль' : 'Кто вы?'}</h1>
+      <p style={{ margin: '4px 0 24px', fontSize: 15, color: 'var(--text-2)' }}>
         {current
           ? 'Если поменять код, новые фото будут называться с новым кодом. Уже снятые фото останутся со старым.'
           : 'Это нужно один раз. Имя видят коллеги, код ставится в начало имени каждого вашего фото.'}
@@ -49,11 +50,12 @@ export function ProfileForm({
       <form onSubmit={submit}>
         <label>
           Имя
-          <input style={fieldStyle} value={name} onChange={e => setName(e.target.value)} placeholder="Например, Иванов И." autoFocus />
+          <input className="field" style={fieldStyle} value={name} onChange={e => setName(e.target.value)} placeholder="Например, Иванов И." autoFocus />
         </label>
         <label>
           Код для имён фото (2–5 латинских букв или цифр)
           <input
+            className="field"
             style={{ ...fieldStyle, textTransform: 'uppercase' }}
             value={shownCode}
             onChange={e => {
@@ -64,18 +66,18 @@ export function ProfileForm({
             placeholder="IVA"
           />
         </label>
-        <p style={{ margin: '0 0 16px', fontSize: 14, color: codeValid || !shownCode ? 'var(--text-muted)' : '#d9534f' }}>
+        <p style={{ margin: '0 0 16px', fontSize: 14, color: codeValid || !shownCode ? 'var(--text-muted)' : 'var(--danger)' }}>
           {codeValid ? `Фото будут называться так: ${shownCode}_20261028_143012_ab12.jpg` : 'Код: 2–5 латинских букв или цифр'}
         </p>
         <button
           type="submit"
           disabled={!name.trim() || !codeValid}
-          style={{ width: '100%', padding: 14, fontSize: 16, border: 0, borderRadius: 8, background: 'var(--accent)', color: '#fff', opacity: !name.trim() || !codeValid ? 0.5 : 1 }}
+          className="primary-btn"
         >
           {current ? 'Сохранить' : 'Продолжить'}
         </button>
         {onCancel && (
-          <button type="button" className="btn-link" style={{ width: '100%', marginTop: 8 }} onClick={onCancel}>
+          <button type="button" className="secondary-btn" style={{ marginTop: 8 }} onClick={onCancel}>
             Отмена
           </button>
         )}

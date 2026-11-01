@@ -180,6 +180,11 @@ export async function setPhotoType(photoId: string, type: PhotoType) {
   await db.photos.update(photoId, { type, updatedAt: Date.now() })
 }
 
+/** Комментарий к точке (необязательный текст). */
+export async function setPointComment(pointId: string, comment: string) {
+  await db.points.update(pointId, { comment, updatedAt: Date.now() })
+}
+
 export async function deletePoint(pointId: string) {
   await db.transaction('rw', db.points, db.photos, db.photoFiles, async () => {
     await db.points.update(pointId, deletedNow())

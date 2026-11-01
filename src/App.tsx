@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getUserProfile, type UserProfile } from './db'
+import { Icon } from './Icon'
 import { ProfileForm } from './ProfileForm'
 import { ProjectList } from './ProjectList'
 import { ProjectPhotos } from './ProjectPhotos'
@@ -52,23 +53,26 @@ function App() {
     )
   }
 
-  if (route.screen === 'sheet') return <SheetViewer sheetId={route.sheetId} onBack={() => history.back()} />
+  if (route.screen === 'sheet') return <SheetViewer key={route.sheetId} sheetId={route.sheetId} onBack={() => history.back()} />
 
   return (
-    <main className="screen">
+    <main className="page">
       {route.screen === 'project' ? (
         <ProjectScreen projectId={route.projectId} onBack={() => history.back()} />
       ) : route.screen === 'photos' ? (
         <ProjectPhotos projectId={route.projectId} onBack={() => history.back()} />
       ) : (
         <>
-          <h1 style={{ fontSize: 22, margin: '0 0 16px' }}>Обследование</h1>
-          <ProjectList onOpen={projectId => navigate({ screen: 'project', projectId })} />
-          <p className="muted" style={{ marginTop: 24, fontSize: 13 }}>
-            Вы: {profile.name} (код {profile.code}).{' '}
-            <button className="btn-link" style={{ padding: 0, fontSize: 13 }} onClick={() => setEditingProfile(true)}>
-              Изменить
+          <div className="page-top">
+            <span className="spacer" />
+            <button className="icon-btn" aria-label="Профиль" onClick={() => setEditingProfile(true)}>
+              <Icon name="user" />
             </button>
+          </div>
+          <h1 className="page-title">Объекты</h1>
+          <ProjectList onOpen={projectId => navigate({ screen: 'project', projectId })} />
+          <p className="muted" style={{ marginTop: 32, fontSize: 12, lineHeight: '16px' }}>
+            {profile.name}, код {profile.code}
             <br />
             {storageText[storage]} Версия от {APP_VERSION}.
           </p>

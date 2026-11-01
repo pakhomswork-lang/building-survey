@@ -1,12 +1,30 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState, type FormEvent } from 'react'
 import { createProject, db } from './db'
+import { countByType, formatWhen, plural } from './format'
+import { Icon } from './Icon'
+import { MixBar, SheetPreview } from './SheetPreview'
 
+/** Список объектов: превью первого листа, сколько листов и фото, полоска типов фото. */
 export function ProjectList({ onOpen }: { onOpen: (projectId: string) => void }) {
   // список обновляется сам, когда в базе что-то меняется
-  const projects = useLiveQuery(async () => {
-    const all = await db.projects.orderBy('updatedAt').reverse().toArray()
-    return all.filter(p => !p.deleted)
+  const data = useLiveQuery(async () => {
+    const [projects, sheets, photos] = await Promise.all([
+      db.projects.orderBy('updatedAt').reverse().toArray(),
+      db.sheets.orderBy('updatedAt').toArray(),
+      db.photos.toArray(),
+    ])
+    const liveSheets = sheets.filter(s => !s.deleted).sort((a, b) => a.order - b.order)
+    const livePhotos = photos.filter(p => !p.deleted)
+    return projects
+      .filter(p => !p.deleted)
+      .map(project => {
+        const own = livePhotos.filter(ph => ph.projectId === project.id)
+        const ownSheets = liveSheets.filter(s => s.projectId === project.id)
+        // «когда работали»: последнее фото или правка объекта
+        const lastTime = Math.max(project.updatedAt, ...own.map(ph => ph.takenAt))
+        return { project, sheets: ownSheets, photos: own, lastTime }
+      })
   })
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
@@ -22,41 +40,54 @@ export function ProjectList({ onOpen }: { onOpen: (projectId: string) => void })
 
   return (
     <section>
-      <h2 style={{ fontSize: 18, margin: '0 0 12px' }}>Объекты</h2>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
+        {data?.map(({ project, sheets, photos, lastTime }) => (
+          <button key={project.id} className="object-card" onClick={() => onOpen(project.id)}>
+            <div style={{ width: 88, flex: 'none' }}>
+              {sheets[0] ? (
+                <SheetPreview sheetId={sheets[0].id} height={64} />
+              ) : (
+                <div className="sheet-preview" style={{ height: 64 }} />
+              )}
+            </div>
+            <div className="info">
+              <b>{project.name}</b>
+              <small>
+                {plural(sheets.length, 'лист', 'листа', 'листов')}, {photos.length} фото. {formatWhen(lastTime)}
+              </small>
+              <MixBar counts={countByType(photos)} />
+            </div>
+          </button>
+        ))}
+      </div>
+      {data?.length === 0 && !creating && <p className="muted">Объектов пока нет. Создайте первый.</p>}
 
-      {creating ? (
-        <form onSubmit={submit} style={{ marginBottom: 16 }}>
-          <input
-            className="field"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            placeholder="Название объекта, например «ул. Ленина, 12»"
-            autoFocus
-          />
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <button className="btn" type="submit" disabled={!name.trim()}>
-              Создать
-            </button>
-            <button className="btn-link" type="button" onClick={() => setCreating(false)}>
-              Отмена
-            </button>
-          </div>
-        </form>
-      ) : (
-        <button className="btn" style={{ width: '100%', marginBottom: 16 }} onClick={() => setCreating(true)}>
-          + Новый объект
-        </button>
-      )}
-
-      {projects?.length === 0 && <p className="muted">Объектов пока нет.</p>}
-      {projects?.map(p => (
-        <button key={p.id} className="card" onClick={() => onOpen(p.id)}>
-          {p.name}
-          <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
-            создан {new Date(p.createdAt).toLocaleDateString('ru-RU')}
-          </div>
-        </button>
-      ))}
+      <div style={{ marginTop: 16 }}>
+        {creating ? (
+          <form onSubmit={submit}>
+            <input
+              className="field"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Название, например «ул. Ленина, 12»"
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <button className="primary-btn" type="submit" disabled={!name.trim()} style={{ flex: 1 }}>
+                Создать
+              </button>
+              <button className="secondary-btn" type="button" style={{ width: 'auto', height: 52 }} onClick={() => setCreating(false)}>
+                Отмена
+              </button>
+            </div>
+          </form>
+        ) : (
+          <button className="secondary-btn" onClick={() => setCreating(true)}>
+            <Icon name="plus" />
+            Новый объект
+          </button>
+        )}
+      </div>
     </section>
   )
 }

@@ -1,13 +1,12 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState } from 'react'
 import { createPoint, db, deleteSheet, PHOTO_TYPES, type Photo, type PhotoType } from './db'
+import { plural, TYPE_KEYS } from './format'
 import { Icon } from './Icon'
 import { PointPanel } from './PointPanel'
 import { typeColor } from './typeColor'
 import { usePanZoom, type Tap } from './usePanZoom'
 import { useObjectUrl } from './useObjectUrl'
-
-const TYPE_KEYS = Object.keys(PHOTO_TYPES) as PhotoType[]
 
 // Размер метки на экране (Р-24). Пока лист отдалён или приближен немного, метка маленькая
 // и не закрывает план. При сильном приближении растёт, но не больше MARKER_MAX.
@@ -38,16 +37,14 @@ function ringBackground(photos: Photo[]): string {
   return `conic-gradient(${stops.join(',')})`
 }
 
-function plural(n: number, one: string, few: string, many: string) {
-  const d = n % 10
-  const dd = n % 100
-  const word = d === 1 && dd !== 11 ? one : d >= 2 && d <= 4 && (dd < 10 || dd >= 20) ? few : many
-  return `${n} ${word}`
-}
-
 export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () => void }) {
   const sheet = useLiveQuery(async () => (await db.sheets.get(sheetId)) ?? null, [sheetId])
   const project = useLiveQuery(async () => (sheet ? await db.projects.get(sheet.projectId) : undefined), [sheet?.projectId])
+  const sheets = useLiveQuery(async () => {
+    if (!sheet) return []
+    const all = await db.sheets.where('projectId').equals(sheet.projectId).sortBy('order')
+    return all.filter(s => !s.deleted)
+  }, [sheet?.projectId])
   const image = useLiveQuery(() => db.sheetImages.get(sheetId), [sheetId])
   const points = useLiveQuery(async () => {
     const all = await db.points.where('sheetId').equals(sheetId).sortBy('createdAt')
@@ -64,6 +61,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
   const [photoType, setPhotoType] = useState<PhotoType>('general')
   const [filter, setFilter] = useState<'all' | PhotoType>('all')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [sheetMenuOpen, setSheetMenuOpen] = useState(false)
 
   // размер области под лист: от него зависит, каким лист будет «вписан в экран»
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -137,12 +135,20 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
           <button className="icon-btn" aria-label="Назад" onClick={onBack}>
             <Icon name="back" />
           </button>
-          <div className="title">
-            <b>{sheet?.name}</b>
+          <button
+            className="title"
+            aria-label="Выбрать другой лист"
+            style={{ border: 0, background: 'none', textAlign: 'left', color: 'inherit', cursor: 'pointer' }}
+            onClick={() => setSheetMenuOpen(o => !o)}
+          >
+            <b style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 'inherit', color: 'inherit', lineHeight: 'inherit' }}>{sheet?.name}</span>
+              {(sheets?.length ?? 0) > 1 && <Icon name="down" size={16} />}
+            </b>
             <span>
               {plural(points?.length ?? 0, 'точка', 'точки', 'точек')}, {photos?.length ?? 0} фото. {project?.name}
             </span>
-          </div>
+          </button>
           <button className="icon-btn" aria-label="Действия с листом" onClick={() => setMenuOpen(o => !o)}>
             <Icon name="more" />
           </button>
@@ -162,6 +168,27 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
           </div>
         )}
       </header>
+
+      {sheetMenuOpen && (sheets?.length ?? 0) > 1 && (
+        <>
+          <div className="menu-scrim" onClick={() => setSheetMenuOpen(false)} />
+          <div className="type-menu" style={{ top: 52, left: 48, right: 'auto', bottom: 'auto', maxHeight: '60vh', overflowY: 'auto' }}>
+            {sheets!.map(s => (
+              <button
+                key={s.id}
+                className={s.id === sheetId ? 'on' : ''}
+                onClick={() => {
+                  setSheetMenuOpen(false)
+                  // заменяем адрес, чтобы «Назад» вёл к объекту, а не к прошлому листу
+                  if (s.id !== sheetId) location.replace(`#/sheet/${s.id}`)
+                }}
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       {menuOpen && (
         <>

@@ -1,6 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState } from 'react'
 import { db, deletePhoto, PHOTO_TYPES, setPhotoType, type Photo, type PhotoType } from './db'
+import { Icon } from './Icon'
+import { typeColor } from './typeColor'
 import { usePanZoom } from './usePanZoom'
 import { useObjectUrl } from './useObjectUrl'
 
@@ -61,18 +63,18 @@ export function PhotoView({
   onClose,
   caption,
 }: {
-  /** Фото, между которыми листаем (уже отфильтрованные по вкладке). */
+  /** Фото, между которыми листаем (уже отфильтрованные). */
   photos: Photo[]
   photoId: string
   onChange: (photoId: string) => void
   onClose: () => void
-  /** Подпись «где снято», например «План 1 этажа · точка 3». */
+  /** Подпись «где снято», например «План 1 этажа, точка 3». */
   caption?: (photo: Photo) => string
 }) {
   const index = photos.findIndex(p => p.id === photoId)
   const photo = index >= 0 ? photos[index] : null
 
-  // фото пропало из списка (сменили тип на другую вкладку) — закрываем просмотр
+  // фото пропало из списка (удалили или сменили тип при отборе по типу) — закрываем просмотр
   useEffect(() => {
     if (!photo) onClose()
   }, [photo, onClose])
@@ -89,50 +91,50 @@ export function PhotoView({
     else onClose()
   }
 
-  const navBtn = {
-    position: 'absolute' as const,
-    top: '50%',
-    marginTop: -28,
-    width: 44,
-    height: 56,
-    border: 0,
-    borderRadius: 8,
-    background: 'rgba(0,0,0,.4)',
-    color: '#fff',
-    fontSize: 28,
-  }
-
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 6, background: '#000', color: '#fff' }}>
+    <div className="dark-screen">
       <ZoomImage key={photo.fileName} fileName={photo.fileName} />
 
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(0,0,0,.5)' }}>
-        <button className="btn-link" style={{ color: '#fff' }} onClick={onClose}>←</button>
-        <span style={{ flex: 1, fontSize: 14 }}>
+      <div className="dark-top">
+        <button className="icon-btn" aria-label="Закрыть" onClick={onClose}>
+          <Icon name="back" />
+        </button>
+        <span style={{ flex: 1, textAlign: 'center', fontSize: 14, opacity: 0.8 }}>
           {index + 1} из {photos.length}
-          {caption && ` · ${caption(photo)}`}
         </span>
-        <button className="btn-link danger" onClick={remove}>Удалить</button>
+        <button className="icon-btn" aria-label="Удалить фото" onClick={remove}>
+          <Icon name="trash" />
+        </button>
       </div>
 
-      {prev && <button aria-label="Предыдущее" style={{ ...navBtn, left: 8 }} onClick={() => onChange(prev.id)}>‹</button>}
-      {next && <button aria-label="Следующее" style={{ ...navBtn, right: 8 }} onClick={() => onChange(next.id)}>›</button>}
+      {prev && (
+        <button className="icon-btn nav-arrow" style={{ left: 8 }} aria-label="Предыдущее" onClick={() => onChange(prev.id)}>
+          <Icon name="left" />
+        </button>
+      )}
+      {next && (
+        <button className="icon-btn nav-arrow" style={{ right: 8 }} aria-label="Следующее" onClick={() => onChange(next.id)}>
+          <Icon name="right" />
+        </button>
+      )}
 
-      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '10px 12px 16px', background: 'rgba(0,0,0,.5)', fontSize: 13 }}>
-        <label>
-          Тип:{' '}
-          <select
-            value={photo.type}
-            onChange={e => setPhotoType(photo.id, e.target.value as PhotoType)}
-            style={{ fontSize: 15, padding: 4 }}
-          >
-            {(Object.entries(PHOTO_TYPES) as [PhotoType, string][]).map(([type, label]) => (
-              <option key={type} value={type}>{label}</option>
-            ))}
-          </select>
-        </label>
-        <div style={{ marginTop: 6, opacity: 0.8 }}>
-          {photo.fileName} · {new Date(photo.takenAt).toLocaleString('ru-RU')}
+      <div className="dark-bottom">
+        {caption && <b style={{ fontWeight: 500, fontSize: 16 }}>{caption(photo)}</b>}
+        <div style={{ fontSize: 13, opacity: 0.65, marginTop: 2, wordBreak: 'break-all' }}>
+          {new Date(photo.takenAt).toLocaleString('ru-RU')}. {photo.fileName}
+        </div>
+        {/* тип можно исправить прямо здесь */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 16 }}>
+          {(Object.entries(PHOTO_TYPES) as [PhotoType, string][]).map(([type, label]) => (
+            <button
+              key={type}
+              className={'chip on-dark' + (type === photo.type ? ' on' : '')}
+              onClick={() => setPhotoType(photo.id, type)}
+            >
+              <i className="type-dot" style={{ background: typeColor(type) }} />
+              {label}
+            </button>
+          ))}
         </div>
       </div>
     </div>
