@@ -39,7 +39,7 @@
 
 <section>
   <h2>3. Проверка</h2>
-  <p class="hint">Создаст на Диске папку «Обследование-тест», запишет туда маленький файл и файл 2 МБ (как лист-план), прочитает их обратно.</p>
+  <p class="hint">Создаст на Диске папку «Обследование-тест», запишет туда маленький файл и файлы 100 КБ, 500 КБ, 2 МБ (как лист-план), прочитает их обратно. Открывай в Chrome.</p>
   <button id="run">Проверить запись и чтение</button>
   <button id="clean" class="secondary">Убрать тестовую папку в корзину</button>
 </section>
@@ -133,11 +133,31 @@ async function step(name, fn) {
   }
 }
 
+// запрос с ограничением по времени, чтобы тест не зависал
+async function fetchT(url, opts, seconds) {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), seconds * 1000)
+  const t0 = performance.now()
+  try {
+    return await fetch(url, { ...opts, signal: ctrl.signal })
+  } catch (e) {
+    const sec = ((performance.now() - t0) / 1000).toFixed(1)
+    throw new Error((e.name === 'AbortError' ? 'нет ответа за ' + seconds + ' с' : e.message) + ' через ' + sec + ' с')
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 async function upload(path, blob) {
   const r = await api('GET', '/resources/upload', { path, overwrite: 'true' })
   if (r.status !== 200) throw new Error('ссылка для загрузки: ' + r.status + ' ' + JSON.stringify(r.body))
   const host = new URL(r.body.href).host
-  const res = await fetch(r.body.href, { method: 'PUT', body: blob })
+  let res
+  try {
+    res = await fetchT(r.body.href, { method: 'PUT', body: blob }, 90)
+  } catch (e) {
+    throw new Error('загрузка на ' + host + ': ' + e.message)
+  }
   if (res.status !== 201 && res.status !== 202) throw new Error('загрузка на ' + host + ': ' + res.status)
   return host
 }
@@ -145,17 +165,35 @@ async function upload(path, blob) {
 async function download(path) {
   const r = await api('GET', '/resources/download', { path })
   if (r.status !== 200) throw new Error('ссылка для скачивания: ' + r.status)
-  const res = await fetch(r.body.href)
-  if (!res.ok) throw new Error('скачивание: ' + res.status)
-  return res.blob()
+  const href = r.body.href
+  const host = new URL(href).host
+  try {
+    const res = await fetchT(href, {}, 60)
+    if (!res.ok) throw new Error('ответ ' + res.status)
+    return await res.blob()
+  } catch (e) {
+    // выясняем, где именно браузер останавливает скачивание
+    let why = ''
+    try {
+      const m = await fetchT(href, { redirect: 'manual' }, 30)
+      why += m.type === 'opaqueredirect' ? '; ' + host + ' перенаправляет на другой адрес' : '; ' + host + ' отвечает ' + m.status
+    } catch (e2) { why += '; без перенаправлений тоже ошибка: ' + e2.message }
+    try {
+      await fetchT(href, { mode: 'no-cors' }, 30)
+      why += '; сам файл доступен, браузер не даёт странице его прочитать'
+    } catch (e3) { why += '; файл недоступен совсем: ' + e3.message }
+    throw new Error('скачивание с ' + host + ': ' + e.message + why)
+  }
 }
 
-// 2 МБ случайных байт: так файл по размеру похож на лист-план
-function bigBlob() {
-  const bytes = new Uint8Array(2 * 1024 * 1024)
+// случайные байты: по размеру как лист-план, не сжимаются
+function randomBlob(kb) {
+  const bytes = new Uint8Array(kb * 1024)
   for (let i = 0; i < bytes.length; i += 65536) crypto.getRandomValues(bytes.subarray(i, i + 65536))
   return new Blob([bytes], { type: 'application/octet-stream' })
 }
+
+const SIZES = [100, 500, 2048] // КБ
 
 $('run').onclick = async () => {
   if (!token()) { alert('Сначала войди через Яндекс'); return }
@@ -164,7 +202,8 @@ $('run').onclick = async () => {
   log('Браузер: ' + navigator.userAgent)
   const stamp = new Date().toISOString()
   const json = JSON.stringify({ author: 'TEST', points: [{ id: 1, x: 12.5, y: 40, comment: 'Трещина' }], stamp })
-  const big = bigBlob()
+  const blobs = SIZES.map((kb) => randomBlob(kb))
+  const sizeName = (kb) => kb >= 1024 ? kb / 1024 + ' МБ' : kb + ' КБ'
 
   await step('Сведения о Диске', async () => {
     const r = await api('GET', '')
@@ -177,7 +216,9 @@ $('run').onclick = async () => {
     if (r.status !== 201) throw new Error('ответ ' + r.status + ' ' + JSON.stringify(r.body))
   })
   await step('Записать маленький файл', () => upload(DIR + '/points_TEST.json', new Blob([json], { type: 'application/json' })))
-  await step('Записать файл 2 МБ', () => upload(DIR + '/sheet_TEST.bin', big))
+  for (let i = 0; i < SIZES.length; i++) {
+    await step('Записать файл ' + sizeName(SIZES[i]), () => upload(DIR + '/sheet_' + SIZES[i] + '.bin', blobs[i]))
+  }
   await step('Список файлов в папке', async () => {
     const r = await api('GET', '/resources', { path: DIR, limit: '100', fields: '_embedded.items.name,_embedded.items.size,_embedded.items.modified' })
     if (r.status !== 200) throw new Error('ответ ' + r.status)
@@ -188,11 +229,13 @@ $('run').onclick = async () => {
     if (JSON.parse(text).stamp !== stamp) throw new Error('прочитано не то, что записано')
     return 'совпадает'
   })
-  await step('Прочитать файл 2 МБ', async () => {
-    const blob = await download(DIR + '/sheet_TEST.bin')
-    if (blob.size !== big.size) throw new Error('размер ' + blob.size + ' вместо ' + big.size)
-    return 'размер совпадает'
-  })
+  for (let i = 0; i < SIZES.length; i++) {
+    await step('Прочитать файл ' + sizeName(SIZES[i]), async () => {
+      const blob = await download(DIR + '/sheet_' + SIZES[i] + '.bin')
+      if (blob.size !== blobs[i].size) throw new Error('размер ' + blob.size + ' вместо ' + blobs[i].size)
+      return 'размер совпадает'
+    })
+  }
   log('--- Конец ---')
   $('run').disabled = false
   showWho()
