@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Концепция А: Калька</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /*
+    Концепция А «Калька»: чертёж главный.
+    Лист занимает весь экран, как лист на столе. Точки — пометки красным карандашом.
+    Снизу лист-шторка с выбранной точкой и её фото.
+  */
+  :root {
+    --desk: #e6e8ea;
+    --paper: #ffffff;
+    --raised: #f2f3f4;
+    --line: rgba(28, 29, 31, 0.1);
+    --text: #1c1d1f;
+    --text-2: #50545a;
+    --muted: #6f7378;
+    --pencil: #c8321e;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    font: 15px/1.45 'IBM Plex Sans', system-ui, sans-serif;
+    color: var(--text);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--desk); }
+  button { font: inherit; color: inherit; }
+  svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  .app { position: fixed; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 56px minmax(0, 1fr) auto; }
+  .sheet, .board { min-width: 0; }
+
+  .top { display: flex; align-items: center; gap: 4px; padding: 0 8px; background: var(--paper); border-bottom: 1px solid var(--line); }
+  .icon-btn { width: 40px; height: 40px; display: grid; place-items: center; border: 0; background: none; border-radius: 10px; color: var(--text-2); cursor: pointer; }
+  .icon-btn:hover { background: var(--raised); }
+  .sheet-pick { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; border: 0; background: none; padding: 4px 8px; border-radius: 10px; cursor: pointer; text-align: left; }
+  .sheet-pick:hover { background: var(--raised); }
+  .sheet-pick b { font-weight: 500; font-size: 16px; line-height: 20px; display: flex; align-items: center; gap: 4px; }
+  .sheet-pick b svg { width: 16px; height: 16px; color: var(--muted); }
+  .sheet-pick span { font-size: 13px; line-height: 16px; color: var(--muted); }
+  .add { display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 14px 0 10px; border: 1px solid var(--pencil); color: var(--pencil); background: var(--paper); border-radius: 10px; font-weight: 500; cursor: pointer; }
+  .add:hover { background: #fbeeec; }
+
+  .board { position: relative; overflow: hidden; padding: 12px; }
+  .paper { position: relative; width: 100%; height: 100%; background: var(--paper); box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.06); }
+  .plan { position: absolute; inset: 0; overflow: hidden; }
+  .canvas { position: absolute; }
+  .marker {
+    position: absolute; width: 30px; height: 30px; margin: -15px 0 0 -15px;
+    display: grid; place-items: center; border-radius: 50%;
+    border: 2px solid var(--pencil); background: rgba(255,255,255,.88);
+    color: var(--pencil); font-weight: 600; font-size: 13px; cursor: pointer;
+    transition: background-color .15s var(--ease), color .15s var(--ease);
+  }
+  .marker.on { background: var(--pencil); color: #fff; }
+  /* выноска выбранной точки, как подпись карандашом на полях чертежа */
+  .callout { position: absolute; transform: translate(-50%, 22px); border-left: 0; border-top: 2px solid var(--pencil); white-space: nowrap; font-size: 12px; line-height: 16px; color: var(--pencil); background: var(--paper); padding: 2px 6px; pointer-events: none; }
+  .stamp { position: absolute; right: 8px; bottom: 8px; font-size: 12px; color: var(--muted); background: var(--paper); padding: 4px 8px; border: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+
+  .sheet { background: var(--paper); border-radius: 16px 16px 0 0; box-shadow: 0 -8px 24px rgba(0,0,0,.06); padding: 8px 16px calc(16px + env(safe-area-inset-bottom)); }
+  .grip { width: 36px; height: 4px; border-radius: 2px; background: var(--line); margin: 0 auto 12px; }
+  .head { display: flex; align-items: flex-start; gap: 8px; }
+  .head h2 { margin: 0; font-size: 20px; line-height: 24px; font-weight: 500; }
+  .head h2 small { font-size: 15px; font-weight: 400; color: var(--text-2); margin-left: 8px; }
+  .head p { margin: 4px 0 0; font-size: 14px; line-height: 20px; color: var(--text-2); }
+  .head .icon-btn { margin: -8px -8px 0 auto; }
+
+  .strip { display: flex; gap: 8px; overflow-x: auto; margin: 12px -16px 0; padding: 0 16px; scrollbar-width: none; }
+  .thumb { position: relative; flex: none; width: 76px; height: 76px; border-radius: 8px; overflow: hidden; border: 0; padding: 0; cursor: pointer; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb span { position: absolute; left: 4px; bottom: 4px; font-size: 11px; line-height: 14px; padding: 1px 4px; border-radius: 4px; background: rgba(28,29,31,.72); color: #fff; }
+  .all { flex: none; width: 76px; height: 76px; border-radius: 8px; border: 1px dashed rgba(28,29,31,.25); background: none; color: var(--text-2); font-size: 13px; line-height: 16px; cursor: pointer; }
+
+  .types { display: flex; gap: 6px; overflow-x: auto; margin: 16px -16px 0; padding: 0 16px; scrollbar-width: none; }
+  .type { flex: none; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--paper); color: var(--text-2); cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 14px; }
+  .type em { font-style: normal; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .type.on { background: var(--text); border-color: var(--text); color: #fff; }
+  .type.on em { color: rgba(255,255,255,.7); }
+
+  .shoot { display: flex; gap: 8px; margin-top: 12px; }
+  .primary { flex: 1; height: 52px; border: 0; border-radius: 12px; background: var(--text); color: #fff; font-size: 16px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; transition: transform .12s var(--ease); }
+  .primary:active { transform: scale(.98); }
+  .secondary { width: 52px; height: 52px; border-radius: 12px; border: 1px solid var(--line); background: var(--raised); display: grid; place-items: center; color: var(--text-2); cursor: pointer; }
+
+  button:focus-visible { outline: 2px solid var(--pencil); outline-offset: 2px; }
+
+  @media (min-width: 900px) {
+    .app { grid-template-columns: minmax(0, 1fr) 400px; grid-template-rows: 64px minmax(0, 1fr); }
+    .top { grid-column: 1 / -1; padding: 0 16px; }
+    .board { padding: 24px; }
+    .sheet { border-radius: 0; box-shadow: none; border-left: 1px solid var(--line); padding: 24px; overflow-y: auto; }
+    .grip { display: none; }
+    .strip { flex-wrap: wrap; margin: 16px 0 0; padding: 0; }
+    .thumb, .all { width: calc((100% - 16px) / 3); height: auto; aspect-ratio: 1; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <button class="icon-btn" aria-label="Назад"><svg class="i" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+    <button class="sheet-pick">
+      <b>План 1 этажа <svg class="i" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></b>
+      <span>Ул. Садовая, 14</span>
+    </button>
+    <button class="add"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Точка</button>
+  </header>
+
+  <main class="board">
+    <div class="paper">
+      <div class="plan" id="plan"></div>
+      <div class="stamp" id="stamp"></div>
+    </div>
+  </main>
+
+  <section class="sheet" id="panel"></section>
+</div>
+
+<script src="shared.js"></script>
+<script>
+  const S = window.SURVEY
+  let selected = 3
+  let type = 'defect'
+
+  const plan = document.getElementById('plan')
+  const canvas = document.createElement('div')
+  canvas.className = 'canvas'
+  plan.appendChild(canvas)
+  canvas.innerHTML = S.planSvg({ paper: '#ffffff', wall: '#2a2b2e', axis: '#a9adb2', text: '#50545a', font: 'IBM Plex Sans' })
+  const total = S.POINTS.reduce((a, p) => a + p.photos.length, 0)
+  document.getElementById('stamp').textContent = `${S.POINTS.length} точек, ${total} фото`
+
+  // точки кладём поверх SVG в тех же процентах; SVG вписан с сохранением пропорций
+  // лист приближен по высоте области и сдвинут к выбранной точке, как после жеста «развести пальцы»
+  const layer = document.createElement('div')
+  layer.style.cssText = 'position:absolute;inset:0'
+  canvas.appendChild(layer)
+  function placeLayer() {
+    const r = plan.getBoundingClientRect()
+    const k = Math.max(Math.min(r.width / 1600, r.height / 1100), r.height / 1100 * 0.95)
+    const w = 1600 * k, h = 1100 * k
+    const p = S.POINTS.find(p => p.n === selected)
+    const left = Math.min(0, Math.max(r.width - w, r.width / 2 - (w * p.x) / 100))
+    Object.assign(canvas.style, { left: left + 'px', top: (r.height - h) / 2 + 'px', width: w + 'px', height: h + 'px' })
+  }
+
+  function render() {
+    layer.innerHTML = S.POINTS.map(p => `
+      <button class="marker ${p.n === selected ? 'on' : ''}" style="left:${p.x}%;top:${p.y}%" data-n="${p.n}" aria-label="Точка ${p.n}">${p.n}</button>
+      ${p.n === selected ? `<div class="callout" style="left:${p.x}%;top:${p.y}%">${p.room.split(' ')[1]}, ${p.photos.length} фото</div>` : ''}`).join('')
+
+    const p = S.POINTS.find(p => p.n === selected)
+    const c = S.counts(p)
+    document.getElementById('panel').innerHTML = `
+      <div class="grip"></div>
+      <div class="head">
+        <div>
+          <h2>Точка ${p.n}<small>${p.room}</small></h2>
+          ${p.note ? `<p>${p.note}</p>` : ''}
+        </div>
+        <button class="icon-btn" aria-label="Действия с точкой"><svg class="i" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
+      </div>
+      <div class="strip">
+        ${p.photos.map((t, i) => `<button class="thumb"><img src="${S.photo(t, p.n * 10 + i, 240, 240)}" alt=""><span>${S.TYPES[t].split(',')[0]}</span></button>`).join('')}
+        <button class="all">Все фото листа</button>
+      </div>
+      <div class="types">
+        ${Object.entries(S.TYPES).map(([k, label]) => `<button class="type ${k === type ? 'on' : ''}" data-type="${k}">${label}${c[k] ? `<em>${c[k]}</em>` : ''}</button>`).join('')}
+      </div>
+      <div class="shoot">
+        <button class="primary"><svg class="i" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>Снять: ${S.TYPES[type].toLowerCase()}</button>
+        <button class="secondary" aria-label="Обычная камера, лучше качество"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3.5"/><path d="M17 8h.01"/></svg></button>
+      </div>`
+  }
+
+  document.addEventListener('click', e => {
+    const m = e.target.closest('.marker')
+    if (m) { selected = +m.dataset.n; render(); placeLayer() }
+    const t = e.target.closest('.type')
+    if (t) { type = t.dataset.type; render() }
+  })
+  new ResizeObserver(placeLayer).observe(plan)
+  placeLayer()
+  render()
+</script>
+</body>
+</html>

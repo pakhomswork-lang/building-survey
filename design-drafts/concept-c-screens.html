@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Концепция В: все экраны</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /*
+    Концепция В «Альбом» на всех экранах приложения.
+    Каждый экран — отдельная рамка телефона 375×812.
+    Правки владельца: две кнопки камеры внизу (основная большая, обычная маленькая),
+    кнопка «Точка» заметная, прямо на плане.
+  */
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --raised: #eceef2;
+    --line: rgba(20, 23, 28, 0.09);
+    --text: #14171c;
+    --text-2: #4a5160;
+    --muted: #697181;
+    --danger: #c23a26;
+    --general: #7d8696;
+    --defect: #d4462f;
+    --measure: #2f6fd4;
+    --node: #2e8a5c;
+    --opening: #b07a12;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    font: 15px/1.45 'Onest', system-ui, sans-serif;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #dfe2e7; padding: 32px; }
+  button { font: inherit; color: inherit; }
+  svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  .board { display: flex; flex-wrap: wrap; gap: 40px 32px; }
+  figure { margin: 0; }
+  figcaption { font-size: 14px; color: var(--text-2); margin-bottom: 12px; max-width: 375px; }
+  figcaption b { display: block; font-weight: 500; color: var(--text); font-size: 16px; }
+  .phone { position: relative; width: 375px; height: 812px; overflow: hidden; background: var(--bg); border-radius: 28px; box-shadow: 0 8px 24px rgba(0,0,0,.08); }
+  .scroll { position: absolute; inset: 0; overflow: hidden; padding: 0 16px; }
+
+  /* общие детали */
+  .top { display: flex; align-items: center; gap: 4px; height: 56px; }
+  .top .spacer { flex: 1; }
+  .icon-btn { width: 40px; height: 40px; display: grid; place-items: center; border: 0; background: none; border-radius: 10px; color: var(--text-2); cursor: pointer; }
+  .top > .icon-btn:first-child { margin-left: -8px; }
+  .top > .icon-btn:last-child { margin-right: -8px; }
+  h1 { margin: 0; font-size: 26px; line-height: 32px; font-weight: 500; letter-spacing: -0.01em; }
+  .sub { font-size: 14px; color: var(--muted); margin-top: 2px; }
+  .chips { display: flex; gap: 6px; overflow: hidden; margin: 12px -16px 0; padding: 0 16px; }
+  .chip { flex: none; height: 32px; padding: 0 12px; display: flex; align-items: center; gap: 6px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text-2); font-size: 14px; }
+  .chip.on { background: var(--text); color: #fff; border-color: var(--text); }
+  .chip.round { border-radius: 16px; padding: 0 10px; font-size: 13px; }
+  .chip.round.on { background: var(--card); color: var(--text); box-shadow: inset 0 0 0 1px var(--text); border-color: var(--text); }
+  .chip i { width: 8px; height: 8px; border-radius: 50%; }
+  .chip em { font-style: normal; color: var(--muted); }
+  .chip.on:not(.round) em { color: rgba(255,255,255,.65); }
+
+  /* полоска долей типов фото: тот же смысл, что у кольца на метке */
+  .mix { display: flex; height: 4px; border-radius: 2px; overflow: hidden; gap: 2px; }
+  .mix span { height: 100%; }
+
+  .group { margin-top: 24px; }
+  .group header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+  .group h2 { margin: 0; font-size: 17px; line-height: 24px; font-weight: 500; }
+  .group h2 span { color: var(--muted); font-weight: 400; margin-left: 4px; }
+  .group header small { margin-left: auto; font-size: 13px; color: var(--muted); }
+  .group p { margin: -4px 0 8px; font-size: 14px; color: var(--text-2); }
+  .group.on h2::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--text); margin-right: 8px; vertical-align: 2px; }
+  .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; border-radius: 12px; overflow: hidden; }
+  .ph { position: relative; aspect-ratio: 1; background: var(--raised); }
+  .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ph::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--c); }
+  .ph.big { grid-column: span 2; grid-row: span 2; }
+
+  /* план */
+  .frame { position: relative; border-radius: 14px; overflow: hidden; background: var(--card); border: 1px solid var(--line); box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+  .canvas { position: absolute; }
+  .ring { position: absolute; width: 32px; height: 32px; margin: -16px 0 0 -16px; border-radius: 50%; display: grid; place-items: center; }
+  /* на маленьких превью — аккуратные точки, цвет типов показывает полоска под превью */
+  .dot { position: absolute; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: var(--text); box-shadow: 0 0 0 1.5px #fff; }
+  .ring span { width: 24px; height: 24px; border-radius: 50%; background: var(--card); display: grid; place-items: center; font-size: 12px; font-weight: 600; }
+  .ring.on span { background: var(--text); color: #fff; }
+  .ring.on { box-shadow: 0 0 0 3px var(--card), 0 0 0 4px var(--text); }
+  .over { position: absolute; height: 36px; padding: 0 12px; display: flex; align-items: center; gap: 6px; border-radius: 10px; font-size: 14px; }
+  .over.light { right: 8px; top: 8px; height: 32px; padding: 0 10px; border: 1px solid var(--line); background: rgba(255,255,255,.92); color: var(--text-2); font-size: 13px; }
+  .over.light svg { width: 16px; height: 16px; }
+  /* кнопка «Точка» — заметная, прямо на плане, где ставят точку */
+  .add-point { left: 8px; bottom: 8px; height: 40px; padding: 0 14px 0 10px; border: 0; background: var(--text); color: #fff; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,.18); }
+
+  /* нижняя панель съёмки */
+  .dock { position: absolute; left: 12px; right: 12px; bottom: 16px; z-index: 3; display: flex; align-items: stretch; gap: 4px; padding: 4px; border-radius: 18px; background: var(--text); color: #fff; box-shadow: 0 8px 24px rgba(0,0,0,.2); }
+  .pick { height: 56px; padding: 0 10px; display: flex; align-items: center; gap: 6px; border: 0; border-radius: 14px; background: rgba(255,255,255,.1); color: #fff; font-size: 14px; }
+  .pick i { width: 10px; height: 10px; border-radius: 50%; background: var(--defect); }
+  .pick svg { width: 14px; height: 14px; opacity: .7; }
+  .go { flex: 1; height: 56px; border: 0; border-radius: 14px; background: #fff; color: var(--text); display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .go b { font-weight: 500; font-size: 16px; line-height: 20px; display: block; text-align: left; }
+  .go small { display: block; font-size: 12px; line-height: 16px; color: var(--muted); }
+  /* обычная (системная) камера — маленькая кнопка в углу панели */
+  .alt { width: 56px; height: 56px; border: 0; border-radius: 14px; background: rgba(255,255,255,.1); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 11px; line-height: 14px; }
+  .alt svg { width: 18px; height: 18px; }
+
+  .primary { height: 52px; border: 0; border-radius: 12px; background: var(--text); color: #fff; font-size: 16px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
+  .secondary { height: 48px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--text); display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; font-size: 15px; }
+
+  /* списки */
+  .list { background: var(--card); border-radius: 14px; border: 1px solid var(--line); overflow: hidden; }
+  .item { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 12px 8px 16px; }
+  .item + .item { border-top: 1px solid var(--line); }
+  .item .grow { flex: 1; min-width: 0; }
+  .item b { display: block; font-weight: 500; font-size: 15px; }
+  .item small { display: block; font-size: 13px; color: var(--muted); }
+  .item > svg { color: var(--muted); }
+  .item.danger { color: var(--danger); }
+  .item.danger > svg { color: var(--danger); }
+  .section-title { font-size: 14px; color: var(--muted); margin: 24px 0 8px; }
+
+  .scrim { position: absolute; inset: 0; background: rgba(20,23,28,.4); z-index: 4; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; background: var(--bg); border-radius: 20px 20px 0 0; padding: 8px 16px 24px; }
+  .grip { width: 36px; height: 4px; border-radius: 2px; background: rgba(20,23,28,.15); margin: 0 auto 16px; }
+</style>
+</head>
+<body>
+<div class="board" id="board"></div>
+
+<script src="shared.js"></script>
+<script>
+  const S = window.SURVEY
+  const col = t => `var(--${t})`
+  const ic = {
+    back: '<path d="m15 18-6-6 6-6"/>',
+    more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    pin: '<path d="M12 22s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12z"/><path d="M12 7v6M9 10h6"/>',
+    cam: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
+    hq: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3.5"/><path d="M17 8h.01"/>',
+    expand: '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
+    down: '<path d="m6 9 6 6 6-6"/>',
+    right: '<path d="m9 18 6-6-6-6"/>',
+    left: '<path d="m15 18-6-6 6-6"/>',
+    x: '<path d="M18 6 6 18M6 6l12 12"/>',
+    folder: '<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9l-.8-1.2A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2z"/>',
+    archive: '<rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4"/>',
+    images: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
+    file: '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><path d="M14 2v6h6M12 18v-6M9 15h6"/>',
+    trash: '<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+    edit: '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+    text: '<path d="M17 6H3M21 12H3M15 18H3"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+  }
+  const i = (name, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24">${ic[name]}</svg>`
+
+  function ringBg(p) {
+    const c = S.counts(p), total = p.photos.length
+    let a = 0
+    const stops = Object.keys(S.TYPES).filter(t => c[t]).map(t => {
+      const from = a
+      a += (c[t] / total) * 360
+      return `${col(t)} ${from}deg ${a - 3}deg, transparent ${a - 3}deg ${a}deg`
+    })
+    return `conic-gradient(${stops.join(',')})`
+  }
+  function mix(counts) {
+    const total = Object.values(counts).reduce((a, b) => a + b, 0)
+    if (!total) return `<div class="mix"><span style="flex:1;background:var(--raised)"></span></div>`
+    return `<div class="mix">${Object.keys(S.TYPES).filter(t => counts[t]).map(t => `<span style="flex:${counts[t]};background:${col(t)}"></span>`).join('')}</div>`
+  }
+
+  /** План с метками. w, h — размер рамки; zoom — приближение к точке focus. */
+  function plan(w, h, { zoom = 1.1, focus = 3, selected = 3, extra = '', small = false, fx, fy } = {}) {
+    const k = Math.max(w / 1600, h / 1100) * zoom
+    const cw = 1600 * k, ch = 1100 * k
+    const p = S.POINTS.find(p => p.n === focus)
+    // fx, fy — центр экрана в процентах листа; если лист меньше области, ставим его посередине
+    const cx = fx ?? p.x, cy = fy ?? p.y
+    const left = cw < w ? (w - cw) / 2 : Math.min(0, Math.max(w - cw, w / 2 - (cw * cx) / 100))
+    const top = ch < h ? (h - ch) / 2 : Math.min(0, Math.max(h - ch, h / 2 - (ch * cy) / 100))
+    // на маленьких превью вместо меток — точки того же цвета
+    const rings = small ? S.POINTS.map(p => `<div class="dot" style="left:${p.x}%;top:${p.y}%"></div>`).join('') : S.POINTS.map(p => `<div class="ring ${p.n === selected ? 'on' : ''}" style="left:${p.x}%;top:${p.y}%;background:${ringBg(p)}"><span>${p.n}</span></div>`).join('')
+    return `<div class="canvas" style="left:${left}px;top:${top}px;width:${cw}px;height:${ch}px">
+      ${S.planSvg({ paper: '#ffffff', wall: '#3a3f48', axis: '#b8bdc6', text: '#697181', font: 'Onest' })}
+      <div style="position:absolute;inset:0">${rings}${extra}</div></div>`
+  }
+
+  function typeChips(active = 'all', counts = S.totals) {
+    const all = Object.values(counts).reduce((a, b) => a + b, 0)
+    return `<div class="chips"><span class="chip round ${active === 'all' ? 'on' : ''}">Все <em>${all}</em></span>` +
+      Object.entries(S.TYPES).map(([k, l]) => `<span class="chip round ${active === k ? 'on' : ''}"><i style="background:${col(k)}"></i>${l}<em>${counts[k] || 0}</em></span>`).join('') + '</div>'
+  }
+
+  function group(p, { selected = false, title } = {}) {
+    return `<section class="group ${selected ? 'on' : ''}">
+      <header><h2>${title || `Точка ${p.n}`}<span>${p.room}</span></h2><small>${p.photos.length} фото</small></header>
+      ${p.note && selected ? `<p>${p.note}</p>` : ''}
+      <div class="grid">${p.photos.map((t, j) => `<div class="ph ${j === 0 && selected ? 'big' : ''}" style="--c:${col(t)}"><img src="${S.photo(t, p.n * 10 + j, 320, 320)}" alt=""></div>`).join('')}</div>
+    </section>`
+  }
+
+  const dock = `<div class="dock">
+    <button class="pick"><i></i>Дефект${i('down')}</button>
+    <button class="go">${i('cam')}<span><b>Снять</b><small>в точку 3</small></span></button>
+    <button class="alt" aria-label="Обычная камера, лучше качество">${i('hq')}Обычная</button>
+  </div>`
+
+  // 1 лист, 2 листа, 5 листов
+  const plural = (n, one, few, many) => `${n} ${n % 10 === 1 && n % 100 !== 11 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? few : many}`
+
+  const P3 = S.POINTS.find(p => p.n === 3)
+
+  // ——— экраны ———
+  const screens = []
+
+  screens.push(['objects', 'Объекты', 'Первый экран. У каждого объекта превью листа и полоска: сколько фото какого типа уже снято.', () => {
+    const objs = [
+      { name: 'Ул. Садовая, 14', sheets: 4, photos: 49, when: 'Сегодня, 14:32', c: { general: 14, defect: 16, measure: 8, node: 6, opening: 5 } },
+      { name: 'Школа № 7, корпус Б', sheets: 12, photos: 312, when: '28 октября', c: { general: 120, defect: 98, measure: 40, node: 30, opening: 24 } },
+      { name: 'Склад, Промзона 3', sheets: 2, photos: 0, when: '25 октября', c: {} },
+    ]
+    return `<div class="scroll">
+      <div class="top"><span class="spacer"></span><button class="icon-btn" aria-label="Профиль">${i('user')}</button></div>
+      <h1>Объекты</h1>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-top:16px">
+        ${objs.map((o, k) => `<div class="list" style="display:flex;gap:12px;padding:12px">
+          <div style="width:88px;height:64px;border-radius:8px;overflow:hidden;flex:none;border:1px solid var(--line);position:relative">${plan(88, 64, { zoom: 1, small: true }).replace(o.photos ? /$^/ : /<div class="dot"[^>]*><\/div>/g, '')}</div>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+            <b style="font-weight:500;font-size:16px">${o.name}</b>
+            <small style="color:var(--muted);font-size:13px">${plural(o.sheets, 'лист', 'листа', 'листов')}, ${o.photos} фото. ${o.when}</small>
+            <div style="margin-top:auto">${mix(o.c)}</div>
+          </div></div>`).join('')}
+      </div>
+      <div style="margin-top:16px"><button class="secondary">${i('plus')}Новый объект</button></div>
+      <p style="position:absolute;left:16px;right:16px;bottom:24px;margin:0;font-size:12px;line-height:16px;color:var(--muted)">Павел Пахомов, код PP<br>Хранилище постоянное. Версия от 01.11.2026, 20:10</p>
+    </div>`
+  }])
+
+  screens.push(['object', 'Объект', 'Листы карточками, под каждым та же цветная полоска. Внизу папка для фото и резервная копия. Переименовать и удалить — в меню «…».', () => {
+    const sheetMix = [{ general: 8, defect: 9, measure: 5, node: 3, opening: 3 }, { general: 5, defect: 6, measure: 3 }, { general: 3, defect: 4, node: 2 }, {}]
+    return `<div class="scroll">
+      <div class="top"><button class="icon-btn">${i('back')}</button><span class="spacer"></span><button class="icon-btn" aria-label="Переименовать, удалить">${i('more')}</button></div>
+      <h1>Ул. Садовая, 14</h1>
+      <div class="sub">4 листа, 49 фото</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px">
+        ${S.SHEETS.map((s, k) => `<div class="list" style="padding:8px">
+          <div style="height:92px;border-radius:8px;overflow:hidden;position:relative;border:1px solid var(--line)">${plan(141, 92, { zoom: 1, small: true }).replace(s.points ? /$^/ : /<div class="dot"[^>]*><\/div>/g, '')}</div>
+          <div style="padding:8px 4px 2px"><b style="font-weight:500;font-size:14px;display:block">${s.name}</b>
+          <small style="font-size:12px;color:var(--muted)">${s.points ? `${plural(s.points, 'точка', 'точки', 'точек')}, ${s.photos} фото` : 'Точек нет'}</small>
+          <div style="margin-top:8px">${mix(sheetMix[k])}</div></div></div>`).join('')}
+      </div>
+      <div style="margin-top:8px"><button class="secondary">${i('file')}Добавить лист: PDF или фото</button></div>
+      <div class="list" style="margin-top:24px">
+        <div class="item">${i('images')}<div class="grow"><b>Все фото объекта</b><small>Отбор по листу и типу</small></div>${i('right')}</div>
+        <div class="item">${i('folder')}<div class="grow"><b>Папка для фото</b><small>Survey / Садовая 14. Сохранены все</small></div>${i('right')}</div>
+        <div class="item">${i('archive')}<div class="grow"><b>Резервная копия</b><small>Архив в «Загрузки»: данные, листы, фото</small></div>${i('right')}</div>
+      </div>
+    </div>`
+  }])
+
+  screens.push(['sheet', 'Лист: обход с планом', 'Точка не выбрана. План занимает почти весь экран, видны все метки. Внизу большая кнопка «Поставить точку»: она есть только в этом режиме. Нажатие на метку открывает точку.', () => `
+    <div style="position:absolute;inset:0;background:var(--card)">
+      <div style="position:absolute;left:0;right:0;top:108px;height:620px;overflow:hidden">${plan(375, 620, { zoom: 0.55, selected: 0, fx: 57, fy: 49 })}</div>
+      <div style="position:absolute;left:0;right:0;top:0;padding:0 16px 8px;background:var(--bg);border-bottom:1px solid var(--line)">
+        <div class="top">
+          <button class="icon-btn">${i('back')}</button>
+          <div style="flex:1;min-width:0;padding-left:4px">
+            <div style="display:flex;align-items:center;gap:4px;font-size:17px;font-weight:500;line-height:22px">План 1 этажа<svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px;color:var(--muted)">${ic.down}</svg></div>
+            <div style="font-size:13px;color:var(--muted);line-height:16px">Ул. Садовая, 14. 8 точек, 26 фото</div>
+          </div>
+          <button class="icon-btn" aria-label="Действия с листом">${i('more')}</button>
+        </div>
+        <div class="chips" style="margin-top:0">${typeChips().replace('<div class="chips">', '').replace(/<\/div>$/, '')}</div>
+      </div>
+      <div style="position:absolute;right:12px;bottom:96px;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--card);box-shadow:0 1px 2px rgba(0,0,0,.05)">
+        <button class="icon-btn" style="border-radius:0;width:44px;height:44px">${i('plus')}</button>
+        <button class="icon-btn" style="border-radius:0;width:44px;height:44px;border-top:1px solid var(--line)"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+      </div>
+      <button class="primary" style="position:absolute;left:16px;right:16px;bottom:20px;width:auto;height:56px;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.2)">${i('pin')}Поставить точку</button>
+    </div>`])
+
+  screens.push(['sheet-point', 'Лист: выбрана точка', 'План уменьшается, под ним фото точки. Кнопки «Точка» здесь нет. Внизу две камеры: большая «Снять» (встроенная, для серий) и маленькая «Обычная» в углу (системная, лучше качество). Крестик или «Весь план» возвращают к обходу.', () => `
+    <div class="scroll">
+      <div class="top"><button class="icon-btn">${i('back')}</button><span class="spacer"></span><button class="icon-btn" aria-label="Действия с листом">${i('more')}</button></div>
+      <h1>Ул. Садовая, 14</h1>
+      <div class="chips">${S.SHEETS.map((s, k) => `<span class="chip ${k === 0 ? 'on' : ''}">${s.name}</span>`).join('')}</div>
+      <div class="frame" style="height:236px;margin-top:12px">
+        ${plan(343, 236, { zoom: 1 })}
+        <span class="over light">${i('expand')}Весь план</span>
+      </div>
+      ${typeChips()}
+      ${group(P3, { selected: true }).replace('<small>5 фото</small>', `<small>5 фото</small><button class="icon-btn" style="width:32px;height:32px;margin:-4px -8px 0 0;align-self:center" aria-label="Закрыть точку">${i('x')}</button>`)}
+    </div>${dock}`])
+
+  screens.push(['add-point', 'Ставим точку', 'После «Точка» план раскрывается на весь экран. Нажатие на план ставит точку, сразу открывается её съёмка.', () => `
+    <div class="scroll" style="padding:0">
+      <div style="position:absolute;inset:0;background:var(--card)">${plan(375, 812, { zoom: 0.62, focus: 6, selected: 0, extra: `<div style="position:absolute;left:44%;top:46%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;border:2px dashed var(--text);background:rgba(20,23,28,.08)"></div>` })}</div>
+      <div style="position:absolute;left:12px;right:12px;top:12px;display:flex;align-items:center;gap:8px;padding:12px 12px 12px 16px;border-radius:14px;background:var(--text);color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.2)">
+        <div style="flex:1;font-size:15px;line-height:20px">Нажмите на план там, где поставить точку</div>
+        <button style="height:36px;padding:0 12px;border:0;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;font-size:14px">Отмена</button>
+      </div>
+      <div style="position:absolute;right:12px;bottom:24px;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--card)">
+        <button class="icon-btn" style="border-radius:0;width:44px;height:44px">${i('plus')}</button>
+        <button class="icon-btn" style="border-radius:0;width:44px;height:44px;border-top:1px solid var(--line)"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+      </div>
+    </div>`])
+
+  screens.push(['camera', 'Встроенная камера', 'Камера не закрывается после снимка. Тип серии переключается цветными кнопками. Справа внизу — переход на обычную камеру.', () => `
+    <div style="position:absolute;inset:0;background:#000">
+      <img src="${S.photo('defect', 31, 750, 1624)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" alt="">
+      <div style="position:absolute;left:0;right:0;top:0;padding:12px 8px 24px;display:flex;align-items:center;gap:4px;color:#fff;background:linear-gradient(rgba(0,0,0,.55),rgba(0,0,0,0))">
+        <button class="icon-btn" style="color:#fff">${i('x')}</button>
+        <div style="flex:1"><b style="font-weight:500">Точка 3</b> <span style="opacity:.75">103 Кухня</span></div>
+        <span style="font-size:13px;opacity:.85;padding-right:8px">Снято: 3</span>
+      </div>
+      <div style="position:absolute;left:0;right:0;bottom:0;padding:24px 16px 28px;background:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.7))">
+        <div style="display:flex;gap:6px;overflow:hidden;margin:0 -16px;padding:0 16px">
+          ${Object.entries(S.TYPES).map(([k, l]) => `<span class="chip round" style="background:${k === 'defect' ? '#fff' : 'rgba(255,255,255,.14)'};color:${k === 'defect' ? 'var(--text)' : '#fff'};border-color:transparent"><i style="background:${col(k)}"></i>${l}</span>`).join('')}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:20px">
+          <div style="width:56px;height:56px;border-radius:12px;overflow:hidden;border:2px solid #fff;position:relative" class="ph"><img src="${S.photo('defect', 32, 160, 160)}" alt=""></div>
+          <button aria-label="Снять" style="width:76px;height:76px;border-radius:50%;border:4px solid #fff;background:none;padding:4px"><span style="display:block;width:100%;height:100%;border-radius:50%;background:#fff"></span></button>
+          <button class="alt" style="background:rgba(255,255,255,.14);color:#fff">${i('hq')}Обычная</button>
+        </div>
+      </div>
+    </div>`])
+
+  screens.push(['photos', 'Все фото объекта', 'Отбор по листу и типу. Фото сгруппированы по точкам, цвет снизу — тип фото.', () => `
+    <div class="scroll">
+      <div class="top"><button class="icon-btn">${i('back')}</button></div>
+      <h1>Фото объекта</h1>
+      <div class="sub">Ул. Садовая, 14</div>
+      <div class="chips"><span class="chip on">Все листы</span>${S.SHEETS.slice(0, 3).map(s => `<span class="chip">${s.name}</span>`).join('')}</div>
+      ${typeChips('defect')}
+      ${[2, 3, 5].map(n => {
+        const p = S.POINTS.find(p => p.n === n)
+        const ph = p.photos.map((t, j) => ({ t, j })).filter(x => x.t === 'defect')
+        return `<section class="group"><header><h2>План 1 этажа, точка ${n}</h2><small>${ph.length} фото</small></header>
+          <div class="grid">${ph.map(x => `<div class="ph" style="--c:${col(x.t)}"><img src="${S.photo(x.t, n * 10 + x.j, 320, 320)}" alt=""></div>`).join('')}</div></section>`
+      }).join('')}
+    </div>`])
+
+  screens.push(['photo', 'Просмотр фото', 'Тип можно исправить прямо здесь. Внизу подпись и уникальное имя файла, по которому фото найдётся на компьютере.', () => `
+    <div style="position:absolute;inset:0;background:#0e1013;color:#fff">
+      <div class="top" style="padding:0 8px"><button class="icon-btn" style="color:#fff">${i('back')}</button><span class="spacer"></span><span style="font-size:14px;opacity:.75">2 из 5</span><span class="spacer"></span><button class="icon-btn" style="color:#fff" aria-label="Удалить">${i('trash')}</button></div>
+      <img src="${S.photo('defect', 31, 750, 562)}" style="position:absolute;left:0;right:0;top:220px;width:100%" alt="">
+      <button class="icon-btn" style="position:absolute;left:8px;top:378px;color:#fff;background:rgba(0,0,0,.35)">${i('left')}</button>
+      <button class="icon-btn" style="position:absolute;right:8px;top:378px;color:#fff;background:rgba(0,0,0,.35)">${i('right')}</button>
+      <div style="position:absolute;left:16px;right:16px;bottom:28px">
+        <b style="font-weight:500;font-size:16px">Точка 3, 103 Кухня</b>
+        <div style="font-size:13px;opacity:.65;margin-top:2px">План 1 этажа. 01.11.2026, 14:30. PP_20261101_143012_k2f9.jpg</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:16px">
+          ${Object.entries(S.TYPES).map(([k, l]) => `<span class="chip round" style="background:${k === 'defect' ? '#fff' : 'rgba(255,255,255,.1)'};color:${k === 'defect' ? 'var(--text)' : '#fff'};border-color:transparent"><i style="background:${col(k)}"></i>${l}</span>`).join('')}
+        </div>
+      </div>
+    </div>`])
+
+  screens.push(['point-menu', 'Меню точки', 'Открывается по «…» у заголовка точки. Комментарий к точке и удаление.', () => `
+    <div class="scroll">
+      <div class="top"><button class="icon-btn">${i('back')}</button></div>
+      <h1>Ул. Садовая, 14</h1>
+      <div class="frame" style="height:236px;margin-top:56px">${plan(343, 236, { zoom: 1 })}</div>
+      ${group(P3, { selected: true })}
+    </div>
+    <div class="scrim"></div>
+    <div class="sheet">
+      <div class="grip"></div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="ring on" style="position:static;margin:0;background:${ringBg(P3)}"><span>3</span></div>
+        <div><b style="font-weight:500;font-size:18px">Точка 3</b><div style="font-size:13px;color:var(--muted)">103 Кухня. Поставил PP, 01.11.2026, 14:21</div></div>
+      </div>
+      <label style="display:block;font-size:14px;color:var(--muted);margin:16px 0 6px">Комментарий</label>
+      <div style="min-height:72px;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--card);font-size:15px">${P3.note}</div>
+      <div style="display:flex;gap:6px;margin-top:12px">${Object.entries(S.counts(P3)).map(([t, n]) => `<span class="chip round"><i style="background:${col(t)}"></i>${S.TYPES[t]}<em>${n}</em></span>`).join('')}</div>
+      <div class="list" style="margin-top:16px">
+        <div class="item danger">${i('trash')}<div class="grow"><b style="color:var(--danger)">Удалить точку и 5 фото</b><small>Фото в папке телефона останутся</small></div></div>
+      </div>
+      <div style="margin-top:16px"><button class="primary">${i('check')}Готово</button></div>
+    </div>`])
+
+  const only = new URLSearchParams(location.search).get('screen')
+  document.getElementById('board').innerHTML = screens
+    .filter(([id]) => !only || id === only)
+    .map(([id, title, text, html]) => `<figure><figcaption><b>${title}</b>${text}</figcaption><div class="phone" data-shot="${id}">${html()}</div></figure>`).join('')
+</script>
+</body>
+</html>

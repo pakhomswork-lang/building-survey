@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Концепция Б: Журнал</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /*
+    Концепция Б «Журнал»: тёмная, плотная, для подвалов, чердаков и долгой смены.
+    Сверху компактный план, под ним журнал точек: всё, что снято, видно одним списком.
+    Метки — квадратные жёлтые бирки, как маркировка на объекте.
+  */
+  :root {
+    --deep: #0f0f10;
+    --bg: #141415;
+    --card: #19191b;
+    --raised: #232325;
+    --line: rgba(237, 237, 237, 0.08);
+    --text: #ededed;
+    --text-2: #a1a1a6;
+    --muted: #85858b;
+    --tag: #f2b705;
+    --tag-ink: #1a1400;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    font: 14px/1.43 'Golos Text', system-ui, sans-serif;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); }
+  button { font: inherit; color: inherit; }
+  svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  .app { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto 1fr; padding-bottom: 88px; }
+
+  .top { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 4px; height: 48px; padding: 0 8px; background: var(--deep); }
+  .icon-btn { width: 36px; height: 36px; display: grid; place-items: center; border: 0; background: none; border-radius: 8px; color: var(--text-2); cursor: pointer; }
+  .icon-btn:hover { background: var(--raised); }
+  .top h1 { flex: 1; min-width: 0; margin: 0; font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sync { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); padding-right: 8px; }
+  .sync i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+
+  .tabs { display: flex; gap: 20px; overflow-x: auto; padding: 0 16px; background: var(--deep); border-bottom: 1px solid var(--line); scrollbar-width: none; }
+  .tab { flex: none; height: 40px; border: 0; background: none; padding: 0; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; display: flex; align-items: center; gap: 6px; }
+  .tab em { font-style: normal; font-size: 12px; }
+  .tab.on { color: var(--text); border-bottom-color: var(--tag); }
+
+  .map { position: relative; height: 264px; overflow: hidden; background: #1b1b1d; border-bottom: 1px solid var(--line); }
+  .canvas { position: absolute; }
+  .tagm {
+    position: absolute; min-width: 24px; height: 24px; margin: -12px 0 0 -12px; padding: 0 4px;
+    display: grid; place-items: center; border-radius: 4px; border: 1.5px solid var(--tag);
+    background: #1b1b1d; color: var(--tag); font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .tagm.on { background: var(--tag); color: var(--tag-ink); box-shadow: 0 0 0 4px rgba(242,183,5,.18); }
+  .zoom { position: absolute; right: 12px; bottom: 12px; display: flex; flex-direction: column; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
+  .zoom button { width: 36px; height: 36px; border: 0; background: var(--card); color: var(--text-2); display: grid; place-items: center; cursor: pointer; }
+  .zoom button + button { border-top: 1px solid var(--line); }
+
+  .bar { display: flex; align-items: center; gap: 8px; padding: 16px 16px 8px; }
+  .bar h2 { margin: 0; font-size: 13px; font-weight: 400; color: var(--muted); flex: 1; }
+  .filter { display: flex; gap: 2px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
+  .filter button { height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: none; color: var(--muted); font-size: 13px; cursor: pointer; }
+  .filter button.on { background: var(--raised); color: var(--text); box-shadow: inset 0 1px 0 rgba(255,255,255,.08); }
+
+  .log { list-style: none; margin: 0; padding: 0 8px; }
+  .row { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 12px 8px; border-radius: 10px; cursor: pointer; }
+  .row + .row { margin-top: 2px; }
+  .row:hover { background: var(--card); }
+  .row.on { background: var(--card); box-shadow: inset 0 0 0 1px var(--line); }
+  .num { width: 28px; height: 28px; border-radius: 4px; border: 1.5px solid var(--tag); color: var(--tag); display: grid; place-items: center; font-weight: 600; font-size: 13px; }
+  .row.on .num { background: var(--tag); color: var(--tag-ink); }
+  .room { font-size: 15px; line-height: 20px; font-weight: 500; }
+  .note { color: var(--text-2); font-size: 13px; line-height: 18px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font-size: 12px; line-height: 16px; color: var(--muted); }
+  .meta b { font-weight: 500; color: var(--text-2); }
+  .stack { display: flex; }
+  .stack img { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; border: 2px solid var(--bg); }
+  .row:hover .stack img, .row.on .stack img { border-color: var(--card); }
+  .stack img + img { margin-left: -14px; }
+  .row.on .stack { display: none; }
+
+  /* у выбранной точки фото раскрываются полосой во всю ширину */
+  .open { grid-column: 2 / -1; display: none; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-top: 4px; }
+  .row.on .open { display: flex; }
+  .open img { flex: none; width: 72px; height: 72px; border-radius: 6px; object-fit: cover; }
+  .open .more { flex: none; width: 72px; height: 72px; border-radius: 6px; border: 1px solid var(--line); background: var(--raised); color: var(--text-2); font-size: 12px; display: grid; place-items: center; text-align: center; line-height: 16px; }
+
+  .dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; gap: 8px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: var(--deep); border-top: 1px solid var(--line); }
+  .ghost { height: 52px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); color: var(--text); display: flex; align-items: center; gap: 8px; cursor: pointer; box-shadow: inset 0 1px 0 rgba(255,255,255,.06); }
+  .shoot { flex: 1; height: 52px; border: 0; border-radius: 10px; background: var(--tag); color: var(--tag-ink); font-size: 15px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: transform .12s var(--ease); }
+  .shoot:active { transform: scale(.98); }
+  .shoot small { font-weight: 400; opacity: .75; font-size: 13px; }
+
+  button:focus-visible, .row:focus-visible { outline: 2px solid var(--tag); outline-offset: 2px; }
+
+  @media (min-width: 900px) {
+    .app { grid-template-columns: minmax(0, 1fr) 440px; grid-template-rows: 48px 41px auto 1fr; height: 100vh; padding: 0; }
+    .top, .tabs { grid-column: 1 / -1; }
+    .map { grid-row: 3 / 5; height: auto; border-right: 1px solid var(--line); }
+    .bar { grid-column: 2; }
+    .log { grid-column: 2; overflow-y: auto; padding-bottom: 96px; }
+    .dock { left: auto; width: 440px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <button class="icon-btn" aria-label="Назад"><svg class="i" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+    <h1>Ул. Садовая, 14</h1>
+    <span class="sync"><i></i>Нет сети, 6 записей ждут</span>
+  </header>
+
+  <nav class="tabs" id="tabs"></nav>
+
+  <section class="map" id="map">
+    <div class="canvas" id="canvas"></div>
+    <div class="zoom">
+      <button aria-label="Приблизить"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button aria-label="Отдалить"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+    </div>
+  </section>
+
+  <div class="bar">
+    <h2 id="count"></h2>
+    <div class="filter" id="filter"></div>
+  </div>
+
+  <ul class="log" id="log"></ul>
+
+  <div class="dock">
+    <button class="ghost"><svg class="i" viewBox="0 0 24 24"><path d="M12 22s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12z"/><path d="M12 7v6M9 10h6"/></svg>Точка</button>
+    <button class="shoot" id="shoot"></button>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+  const S = window.SURVEY
+  let selected = 3
+  let filter = 'all'
+  const short = { general: 'Общий', defect: 'Дефект', measure: 'Замер', node: 'Узел', opening: 'Вскрытие' }
+
+  document.getElementById('tabs').innerHTML = S.SHEETS.map((s, i) =>
+    `<button class="tab ${i === 0 ? 'on' : ''}">${s.name}<em>${s.points}</em></button>`).join('')
+
+  const canvas = document.getElementById('canvas')
+  const map = document.getElementById('map')
+  canvas.innerHTML = S.planSvg({ paper: '#1b1b1d', wall: '#d6d6d9', axis: '#4b4b50', text: '#8d8d93', font: 'Golos Text' }) + '<div id="tags" style="position:absolute;inset:0"></div>'
+
+  function place() {
+    // план приближен в полтора раза к выбранной точке
+    const r = map.getBoundingClientRect()
+    const k = Math.min(r.width / 1600, r.height / 1100) * 1.5
+    const w = 1600 * k, h = 1100 * k
+    const p = S.POINTS.find(p => p.n === selected)
+    const left = Math.min(0, Math.max(r.width - w, r.width / 2 - (w * p.x) / 100))
+    const top = Math.min(0, Math.max(r.height - h, r.height / 2 - (h * p.y) / 100))
+    Object.assign(canvas.style, { left: left + 'px', top: top + 'px', width: w + 'px', height: h + 'px' })
+  }
+
+  function render() {
+    document.getElementById('tags').innerHTML = S.POINTS.map(p =>
+      `<button class="tagm ${p.n === selected ? 'on' : ''}" style="left:${p.x}%;top:${p.y}%" data-n="${p.n}">${p.n}</button>`).join('')
+
+    const f = [['all', 'Все'], ['defect', 'Дефекты'], ['opening', 'Вскрытия']]
+    document.getElementById('filter').innerHTML = f.map(([k, l]) => `<button class="${k === filter ? 'on' : ''}" data-f="${k}">${l}</button>`).join('')
+
+    const list = S.POINTS.filter(p => filter === 'all' || p.photos.includes(filter))
+    const total = list.reduce((a, p) => a + p.photos.length, 0)
+    document.getElementById('count').textContent = `${list.length} точек, ${total} фото`
+
+    document.getElementById('log').innerHTML = list.map(p => {
+      const c = S.counts(p)
+      return `<li class="row ${p.n === selected ? 'on' : ''}" data-n="${p.n}" tabindex="0">
+        <span class="num">${p.n}</span>
+        <div>
+          <div class="room">${p.room}</div>
+          <div class="note">${p.note || 'Без комментария'}</div>
+          <div class="meta">${Object.entries(c).map(([t, n]) => `<span>${short[t]} <b>${n}</b></span>`).join('')}</div>
+        </div>
+        <div class="stack">${p.photos.slice(0, 3).map((t, i) => `<img src="${S.photo(t, p.n * 10 + i, 120, 120)}" alt="">`).join('')}</div>
+        <div class="open">${p.photos.map((t, i) => `<img src="${S.photo(t, p.n * 10 + i, 200, 200)}" alt="">`).join('')}<span class="more">Все фото<br>точки</span></div>
+      </li>`
+    }).join('')
+
+    document.getElementById('shoot').innerHTML =
+      `<svg class="i" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>Снять в точку ${selected}<small>дефект</small>`
+    place()
+  }
+
+  document.addEventListener('click', e => {
+    const n = e.target.closest('[data-n]')
+    if (n) { selected = +n.dataset.n; render() }
+    const fb = e.target.closest('[data-f]')
+    if (fb) { filter = fb.dataset.f; render() }
+  })
+  new ResizeObserver(place).observe(map)
+  render()
+</script>
+</body>
+</html>

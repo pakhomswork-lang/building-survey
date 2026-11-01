@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Концепция В: Альбом</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /*
+    Концепция В «Альбом»: фото главные, план — карта-навигатор над ними.
+    Цвет несёт смысл: у каждого типа фото свой цвет, и метка на плане показывает
+    кольцом, какие фото в точке уже сняты. Остальной интерфейс серый.
+  */
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --raised: #eceef2;
+    --line: rgba(20, 23, 28, 0.09);
+    --text: #14171c;
+    --text-2: #4a5160;
+    --muted: #697181;
+    --general: #7d8696;
+    --defect: #d4462f;
+    --measure: #2f6fd4;
+    --node: #2e8a5c;
+    --opening: #b07a12;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    font: 15px/1.45 'Onest', system-ui, sans-serif;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); }
+  button { font: inherit; color: inherit; }
+  svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  .page { max-width: 1120px; margin: 0 auto; padding: 0 16px 112px; }
+
+  .top { display: flex; align-items: center; gap: 8px; padding: 12px 0 0; }
+  .icon-btn { width: 40px; height: 40px; display: grid; place-items: center; border: 0; background: none; border-radius: 10px; color: var(--text-2); cursor: pointer; margin-left: -8px; }
+  .icon-btn:hover { background: var(--raised); }
+  .top .spacer { flex: 1; }
+  h1 { margin: 4px 0 0; font-size: 26px; line-height: 32px; font-weight: 500; letter-spacing: -0.01em; }
+
+  .sheets { display: flex; gap: 6px; overflow-x: auto; margin: 12px -16px 0; padding: 0 16px; scrollbar-width: none; }
+  .sheet { flex: none; height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text-2); font-size: 14px; cursor: pointer; }
+  .sheet.on { background: var(--text); color: #fff; border-color: var(--text); }
+
+  /* карта-навигатор */
+  .map { position: sticky; top: 0; z-index: 2; margin: 12px -16px 0; padding: 8px 16px; background: var(--bg); }
+  .frame { position: relative; height: 196px; border-radius: 14px; overflow: hidden; background: var(--card); box-shadow: 0 1px 2px rgba(0,0,0,.05); border: 1px solid var(--line); }
+  .canvas { position: absolute; }
+  .ring {
+    position: absolute; width: 32px; height: 32px; margin: -16px 0 0 -16px; border-radius: 50%;
+    display: grid; place-items: center; cursor: pointer; border: 0; padding: 0;
+  }
+  .ring span { width: 24px; height: 24px; border-radius: 50%; background: var(--card); display: grid; place-items: center; font-size: 12px; font-weight: 600; color: var(--text); }
+  .ring.on span { background: var(--text); color: #fff; }
+  .ring.on { box-shadow: 0 0 0 3px var(--card), 0 0 0 4px var(--text); }
+  .expand { position: absolute; right: 8px; top: 8px; height: 32px; padding: 0 10px; display: flex; align-items: center; gap: 6px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255,255,255,.92); color: var(--text-2); font-size: 13px; cursor: pointer; }
+  .expand svg { width: 16px; height: 16px; }
+
+  .types { display: flex; gap: 6px; overflow-x: auto; margin: 4px -16px 0; padding: 0 16px; scrollbar-width: none; }
+  .type { flex: none; height: 32px; padding: 0 10px; display: flex; align-items: center; gap: 6px; border-radius: 16px; border: 1px solid var(--line); background: var(--card); color: var(--text-2); font-size: 13px; cursor: pointer; }
+  .type i { width: 8px; height: 8px; border-radius: 50%; }
+  .type em { font-style: normal; color: var(--muted); }
+  .type.on { border-color: var(--text); color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
+
+  .group { margin-top: 24px; }
+  .group header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+  .group h2 { margin: 0; font-size: 17px; line-height: 24px; font-weight: 500; }
+  .group h2 span { color: var(--muted); font-weight: 400; margin-left: 4px; }
+  .group header small { margin-left: auto; font-size: 13px; color: var(--muted); }
+  .group p { margin: -4px 0 8px; font-size: 14px; color: var(--text-2); }
+  .group.on h2::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--text); margin-right: 8px; vertical-align: 2px; }
+  .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; border-radius: 12px; overflow: hidden; }
+  .ph { position: relative; aspect-ratio: 1; border: 0; padding: 0; cursor: pointer; background: var(--raised); }
+  .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ph::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--c); }
+  .ph.big { grid-column: span 2; grid-row: span 2; }
+
+  .dock { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 3; width: min(560px, calc(100% - 32px)); display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 16px; background: var(--text); color: #fff; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+  .pick { height: 52px; padding: 0 12px; display: flex; align-items: center; gap: 8px; border: 0; border-radius: 12px; background: rgba(255,255,255,.1); color: #fff; font-size: 14px; cursor: pointer; }
+  .pick i { width: 10px; height: 10px; border-radius: 50%; background: var(--defect); }
+  .pick svg { width: 16px; height: 16px; opacity: .7; }
+  .go { flex: 1; height: 52px; border: 0; border-radius: 12px; background: #fff; color: var(--text); font-size: 16px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: transform .12s var(--ease); }
+  .go:active { transform: scale(.98); }
+
+  button:focus-visible { outline: 2px solid var(--measure); outline-offset: 2px; }
+
+  @media (min-width: 900px) {
+    .page { display: grid; grid-template-columns: 420px minmax(0, 1fr); column-gap: 32px; padding: 0 32px 112px; }
+    .top, h1, .sheets { grid-column: 1 / -1; }
+    .map { grid-row: 4 / 7; margin: 12px 0 0; padding: 0; top: 16px; align-self: start; }
+    .frame { height: 300px; }
+    .types { grid-column: 2; margin: 12px 0 0; padding: 0; }
+    .groups { grid-column: 2; }
+    .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="top">
+    <button class="icon-btn" aria-label="Назад"><svg class="i" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+    <span class="spacer"></span>
+    <button class="icon-btn" aria-label="Поставить точку"><svg class="i" viewBox="0 0 24 24"><path d="M12 22s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12z"/><path d="M12 7v6M9 10h6"/></svg></button>
+    <button class="icon-btn" aria-label="Ещё"><svg class="i" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
+  </div>
+  <h1>Ул. Садовая, 14</h1>
+  <div class="sheets" id="sheets"></div>
+
+  <div class="map">
+    <div class="frame" id="frame">
+      <div class="canvas" id="canvas"></div>
+      <button class="expand"><svg class="i" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>Весь лист</button>
+    </div>
+  </div>
+
+  <div class="types" id="types"></div>
+  <div class="groups" id="groups"></div>
+</div>
+
+<div class="dock">
+  <button class="pick"><i></i>Дефект<svg class="i" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+  <button class="go" id="go"></button>
+</div>
+
+<script src="shared.js"></script>
+<script>
+  const S = window.SURVEY
+  let selected = 3
+  let filter = 'all'
+  const colorOf = t => `var(--${t})`
+
+  document.getElementById('sheets').innerHTML = S.SHEETS.map((s, i) =>
+    `<button class="sheet ${i === 0 ? 'on' : ''}">${s.name}</button>`).join('')
+
+  const canvas = document.getElementById('canvas')
+  const frame = document.getElementById('frame')
+  canvas.innerHTML = S.planSvg({ paper: '#ffffff', wall: '#3a3f48', axis: '#b8bdc6', text: '#697181', font: 'Onest' }) + '<div id="rings" style="position:absolute;inset:0"></div>'
+
+  function place() {
+    const r = frame.getBoundingClientRect()
+    const k = Math.max(r.width / 1600, r.height / 1100) * 1.1
+    const w = 1600 * k, h = 1100 * k
+    const p = S.POINTS.find(p => p.n === selected)
+    const left = Math.min(0, Math.max(r.width - w, r.width / 2 - (w * p.x) / 100))
+    const top = Math.min(0, Math.max(r.height - h, r.height / 2 - (h * p.y) / 100))
+    Object.assign(canvas.style, { left: left + 'px', top: top + 'px', width: w + 'px', height: h + 'px' })
+  }
+
+  // кольцо метки: доли цветов — сколько фото какого типа в точке
+  function ring(p) {
+    const c = S.counts(p)
+    const total = p.photos.length
+    let a = 0
+    const stops = Object.keys(S.TYPES).filter(t => c[t]).map(t => {
+      const from = a
+      a += (c[t] / total) * 360
+      return `${colorOf(t)} ${from}deg ${a - 3}deg, transparent ${a - 3}deg ${a}deg`
+    })
+    return `conic-gradient(${stops.join(',')})`
+  }
+
+  function render() {
+    document.getElementById('rings').innerHTML = S.POINTS.map(p =>
+      `<button class="ring ${p.n === selected ? 'on' : ''}" style="left:${p.x}%;top:${p.y}%;background:${ring(p)}" data-n="${p.n}" aria-label="Точка ${p.n}"><span>${p.n}</span></button>`).join('')
+
+    const all = S.POINTS.reduce((a, p) => a + p.photos.length, 0)
+    document.getElementById('types').innerHTML =
+      `<button class="type ${filter === 'all' ? 'on' : ''}" data-f="all">Все <em>${all}</em></button>` +
+      Object.entries(S.TYPES).map(([k, l]) =>
+        `<button class="type ${filter === k ? 'on' : ''}" data-f="${k}"><i style="background:${colorOf(k)}"></i>${l}<em>${S.totals[k] || 0}</em></button>`).join('')
+
+    // выбранная точка первой, остальные по номеру
+    const order = [S.POINTS.find(p => p.n === selected), ...S.POINTS.filter(p => p.n !== selected)]
+    document.getElementById('groups').innerHTML = order.map(p => {
+      const photos = p.photos.map((t, i) => ({ t, i })).filter(x => filter === 'all' || x.t === filter)
+      if (!photos.length) return ''
+      return `<section class="group ${p.n === selected ? 'on' : ''}">
+        <header><h2>Точка ${p.n}<span>${p.room}</span></h2><small>${photos.length} фото</small></header>
+        ${p.note ? `<p>${p.note}</p>` : ''}
+        <div class="grid">${photos.map((x, j) =>
+          `<button class="ph ${j === 0 && p.n === selected ? 'big' : ''}" style="--c:${colorOf(x.t)}" aria-label="${S.TYPES[x.t]}"><img src="${S.photo(x.t, p.n * 10 + x.i, 320, 320)}" alt=""></button>`).join('')}</div>
+      </section>`
+    }).join('')
+
+    document.getElementById('go').innerHTML =
+      `<svg class="i" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>Снять в точку ${selected}`
+    place()
+  }
+
+  document.addEventListener('click', e => {
+    const n = e.target.closest('[data-n]')
+    if (n) { selected = +n.dataset.n; render() }
+    const f = e.target.closest('[data-f]')
+    if (f) { filter = f.dataset.f; render() }
+  })
+  new ResizeObserver(place).observe(frame)
+  render()
+</script>
+</body>
+</html>
