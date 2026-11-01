@@ -20,8 +20,8 @@ export default defineConfig({
         description: 'Фото и данные обследования, привязанные к точкам на листах',
         lang: 'ru',
         display: 'standalone',
-        theme_color: '#1f6feb',
-        background_color: '#f5f5f5',
+        theme_color: '#f4f5f7',
+        background_color: '#f4f5f7',
         icons: [
           { src: 'pwa-64x64.png', sizes: '64x64', type: 'image/png' },
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
@@ -31,8 +31,9 @@ export default defineConfig({
       },
       workbox: {
         // всё нужное для работы без интернета кладём в кэш заранее
+        // woff2 — шрифт Onest
         // .mjs — фоновый поток pdf.js для чтения PDF (около 1,3 МБ), лимит подняли с запасом
-        globPatterns: ['**/*.{js,mjs,css,html,ico,png,svg}'],
+        globPatterns: ['**/*.{js,mjs,css,html,ico,png,svg,woff2}'],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
       },
     }),

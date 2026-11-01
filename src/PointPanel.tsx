@@ -1,13 +1,15 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useRef, useState } from 'react'
+import { useRef, useState, type CSSProperties } from 'react'
 import { db, deletePoint, PHOTO_TYPES, type PhotoType, type Point } from './db'
 import { CameraView } from './CameraView'
+import { Icon } from './Icon'
 import { PhotoGallery } from './PhotoGallery'
 import { PhotoThumb } from './PhotoThumb'
 import { getFolder, hasFolderPermission } from './photoFolder'
 import { savePhoto } from './photos'
+import { typeColor } from './typeColor'
 
-/** Панель выбранной точки: тип серии, кнопка съёмки и что уже снято. */
+/** Выбранная точка: её фото сеткой и внизу панель съёмки (тип, встроенная камера, обычная камера). */
 export function PointPanel({
   point,
   number,
@@ -29,6 +31,7 @@ export function PointPanel({
   const camera = useRef<HTMLInputElement>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [typeMenuOpen, setTypeMenuOpen] = useState(false)
 
   async function onFiles(files: FileList | null) {
     if (!files?.length) return
@@ -61,72 +64,74 @@ export function PointPanel({
     )
   }
 
-  const counts = (Object.keys(PHOTO_TYPES) as PhotoType[])
-    .map(type => ({ type, count: photos?.filter(p => p.type === type).length ?? 0 }))
-    .filter(c => c.count > 0)
+  async function removePoint() {
+    const count = photos?.length ?? 0
+    const ok = confirm(
+      `Удалить точку ${number}` + (count ? ` и ${count} фото в ней?` : '?') +
+        (count ? '\n\nФото, уже сохранённые в папку телефона, останутся там.' : ''),
+    )
+    if (!ok) return
+    await deletePoint(point.id)
+    onClose()
+  }
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        zIndex: 1,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        padding: 12,
-        // отступ под системные кнопки телефона, чтобы превью фото не прятались за ними
-        paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
-        background: 'var(--surface)',
-        borderTop: '1px solid #ddd',
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <strong>Точка {number}</strong>
-        <span style={{ display: 'flex', gap: 16 }}>
-          <button
-            className="btn-link danger"
-            style={{ padding: 0 }}
-            onClick={async () => {
-              const count = photos?.length ?? 0
-              const ok = confirm(
-                `Удалить точку ${number}` + (count ? ` и ${count} фото в ней?` : '?') +
-                  (count ? '\n\nФото, уже сохранённые в папку телефона, останутся там.' : ''),
-              )
-              if (!ok) return
-              await deletePoint(point.id)
-              onClose()
-            }}
-          >
-            Удалить
+    <>
+      <section className="point-panel">
+        <div className="point-head">
+          <h2>Точка {number}</h2>
+          <small>{photos?.length ?? 0} фото</small>
+          <button className="icon-btn" aria-label="Удалить точку" onClick={removePoint} style={{ marginRight: -8 }}>
+            <Icon name="trash" />
           </button>
-          <button className="btn-link" style={{ padding: 0 }} onClick={onClose}>
-            Закрыть
+          <button className="icon-btn" aria-label="Закрыть точку" onClick={onClose} style={{ marginRight: -8 }}>
+            <Icon name="close" />
           </button>
-        </span>
-      </div>
-      <div className="muted" style={{ fontSize: 13 }}>
-        поставлена {new Date(point.createdAt).toLocaleString('ru-RU')}
-      </div>
+        </div>
+        <div className="point-meta">поставлена {new Date(point.createdAt).toLocaleString('ru-RU')}</div>
+        {point.comment && <p style={{ margin: '8px 0 0', fontSize: 15, color: 'var(--text-2)' }}>{point.comment}</p>}
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '10px 0' }}>
-        {(Object.entries(PHOTO_TYPES) as [PhotoType, string][]).map(([type, label]) => (
-          <button
-            key={type}
-            onClick={() => onPhotoTypeChange(type)}
-            style={{
-              padding: '6px 10px',
-              fontSize: 14,
-              borderRadius: 16,
-              border: '1px solid var(--accent)',
-              background: type === photoType ? 'var(--accent)' : '#fff',
-              color: type === photoType ? '#fff' : 'var(--accent)',
-              cursor: 'pointer',
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+        {error && <p style={{ color: 'var(--danger)', fontSize: 14 }}>{error}</p>}
+
+        {photos && photos.length > 0 ? (
+          <div className="photo-grid">
+            {photos.map((p, i) => (
+              <button
+                key={p.id}
+                className={'photo-cell' + (i === 0 ? ' big' : '')}
+                style={{ '--c': typeColor(p.type) } as CSSProperties}
+                aria-label={PHOTO_TYPES[p.type]}
+                onClick={() => setGalleryOpen(true)}
+              >
+                <PhotoThumb fileName={p.fileName} size="100%" radius={0} />
+              </button>
+            ))}
+          </div>
+        ) : (
+          photos && <div className="empty-photos">Фото пока нет. Выберите тип и нажмите «Снять»</div>
+        )}
+      </section>
+
+      {typeMenuOpen && (
+        <>
+          <div className="menu-scrim" onClick={() => setTypeMenuOpen(false)} />
+          <div className="type-menu">
+            {(Object.entries(PHOTO_TYPES) as [PhotoType, string][]).map(([type, label]) => (
+              <button
+                key={type}
+                className={type === photoType ? 'on' : ''}
+                onClick={() => {
+                  onPhotoTypeChange(type)
+                  setTypeMenuOpen(false)
+                }}
+              >
+                <i className="type-dot" style={{ background: typeColor(type), width: 10, height: 10 }} />
+                {label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       <input
         ref={camera}
@@ -136,12 +141,25 @@ export function PointPanel({
         hidden
         onChange={e => onFiles(e.target.files)}
       />
-      <button className="btn" style={{ width: '100%' }} onClick={openCamera}>
-        📷 Камера: {PHOTO_TYPES[photoType]}
-      </button>
-      <button className="btn btn-outline" style={{ width: '100%', marginTop: 8, fontSize: 15 }} disabled={saving} onClick={() => camera.current?.click()}>
-        {saving ? 'Сохраняем…' : 'Обычная камера (лучше качество)'}
-      </button>
+      <div className="dock">
+        <button className="pick" aria-label="Тип фото" onClick={() => setTypeMenuOpen(o => !o)}>
+          <i className="type-dot" style={{ background: typeColor(photoType) }} />
+          {PHOTO_TYPES[photoType].split(',')[0]}
+          <Icon name="down" size={14} />
+        </button>
+        <button className="go" onClick={openCamera}>
+          <Icon name="camera" />
+          <span>
+            <b>Снять</b>
+            <small>в точку {number}</small>
+          </span>
+        </button>
+        <button className="alt" aria-label="Обычная камера, лучше качество" disabled={saving} onClick={() => camera.current?.click()}>
+          <Icon name="cameraAlt" size={18} />
+          {saving ? 'Сохраняем' : 'Обычная'}
+        </button>
+      </div>
+
       {cameraOpen && (
         <CameraView
           photoType={photoType}
@@ -150,28 +168,7 @@ export function PointPanel({
           onClose={() => setCameraOpen(false)}
         />
       )}
-      {error && <p style={{ color: '#d9534f', fontSize: 14 }}>{error}</p>}
-
-      {photos && photos.length > 0 && (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '10px 0 6px' }}>
-            <span className="muted" style={{ fontSize: 13 }}>
-              {counts.map(c => `${PHOTO_TYPES[c.type]}: ${c.count}`).join(' · ')}
-            </span>
-            <button className="btn-link" style={{ padding: 0, fontSize: 14, flex: 'none' }} onClick={() => setGalleryOpen(true)}>
-              Все фото →
-            </button>
-          </div>
-          <div style={{ display: 'flex', gap: 6, overflowX: 'auto' }}>
-            {photos.map(p => (
-              <button key={p.id} onClick={() => setGalleryOpen(true)} style={{ padding: 0, border: 0, background: 'none' }}>
-                <PhotoThumb fileName={p.fileName} size={56} />
-              </button>
-            ))}
-          </div>
-        </>
-      )}
       {galleryOpen && <PhotoGallery pointId={point.id} title={`Точка ${number}`} onClose={() => setGalleryOpen(false)} />}
-    </div>
+    </>
   )
 }

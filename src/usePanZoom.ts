@@ -68,6 +68,16 @@ export function usePanZoom(
     apply({ x: 0, y: 0, s: 1 })
   }, [apply])
 
+  // область под лист изменилась (например, выбрали точку и план стал ниже):
+  // оставляем масштаб, но заново ставим лист в границы области
+  useEffect(() => {
+    const el = viewportRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => apply(tRef.current))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [apply, viewportRef])
+
   /** Масштаб в f раз вокруг точки (cx, cy) экрана. */
   const zoomAt = useCallback(
     (f: number, cx: number, cy: number, dx = 0, dy = 0) => {
@@ -138,5 +148,11 @@ export function usePanZoom(
     zoomAt(Math.exp(-e.deltaY * 0.0015), p.x, p.y)
   }
 
-  return { t, handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onWheel } }
+  /** Кнопки «+» и «−»: масштаб вокруг середины экрана. */
+  function zoomBy(f: number) {
+    const vp = viewportRef.current
+    if (vp) zoomAt(f, vp.clientWidth / 2, vp.clientHeight / 2)
+  }
+
+  return { t, zoomBy, handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onWheel } }
 }

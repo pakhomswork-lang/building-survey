@@ -1,17 +1,60 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState } from 'react'
-import { createPoint, db, deleteSheet, type PhotoType } from './db'
+import { createPoint, db, deleteSheet, PHOTO_TYPES, type Photo, type PhotoType } from './db'
+import { Icon } from './Icon'
 import { PointPanel } from './PointPanel'
+import { typeColor } from './typeColor'
 import { usePanZoom, type Tap } from './usePanZoom'
 import { useObjectUrl } from './useObjectUrl'
 
-const MARKER = 28
+const TYPE_KEYS = Object.keys(PHOTO_TYPES) as PhotoType[]
+
+// Размер метки на экране (Р-24). Пока лист отдалён или приближен немного, метка маленькая
+// и не закрывает план. При сильном приближении растёт, но не больше MARKER_MAX.
+const MARKER_MIN = 22
+const MARKER_MAX = 34
+/** С какого приближения (во сколько раз больше «лист целиком») метка начинает расти. */
+const MARKER_GROW_FROM = 2.5
+
+function markerSize(scale: number): number {
+  if (scale <= MARKER_GROW_FROM) return MARKER_MIN
+  return Math.min(MARKER_MAX, MARKER_MIN * Math.sqrt(scale / MARKER_GROW_FROM))
+}
+
+/** Кольцо метки: доли цветов показывают, сколько фото какого типа в точке. */
+function ringBackground(photos: Photo[]): string {
+  if (!photos.length) return '#c4c9d1'
+  let angle = 0
+  const stops: string[] = []
+  for (const type of TYPE_KEYS) {
+    const n = photos.filter(p => p.type === type).length
+    if (!n) continue
+    const from = angle
+    angle += (n / photos.length) * 360
+    // маленький зазор между долями, если типов несколько
+    const gap = n === photos.length ? 0 : 3
+    stops.push(`${typeColor(type)} ${from}deg ${angle - gap}deg`, `transparent ${angle - gap}deg ${angle}deg`)
+  }
+  return `conic-gradient(${stops.join(',')})`
+}
+
+function plural(n: number, one: string, few: string, many: string) {
+  const d = n % 10
+  const dd = n % 100
+  const word = d === 1 && dd !== 11 ? one : d >= 2 && d <= 4 && (dd < 10 || dd >= 20) ? few : many
+  return `${n} ${word}`
+}
 
 export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () => void }) {
   const sheet = useLiveQuery(async () => (await db.sheets.get(sheetId)) ?? null, [sheetId])
+  const project = useLiveQuery(async () => (sheet ? await db.projects.get(sheet.projectId) : undefined), [sheet?.projectId])
   const image = useLiveQuery(() => db.sheetImages.get(sheetId), [sheetId])
   const points = useLiveQuery(async () => {
     const all = await db.points.where('sheetId').equals(sheetId).sortBy('createdAt')
+    return all.filter(p => !p.deleted)
+  }, [sheetId])
+  const photos = useLiveQuery(async () => {
+    const all = await db.photos.where('sheetId').equals(sheetId).toArray()
     return all.filter(p => !p.deleted)
   }, [sheetId])
   const url = useObjectUrl(image?.blob)
@@ -19,6 +62,8 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
   const [adding, setAdding] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [photoType, setPhotoType] = useState<PhotoType>('general')
+  const [filter, setFilter] = useState<'all' | PhotoType>('all')
+  const [menuOpen, setMenuOpen] = useState(false)
 
   // размер области под лист: от него зависит, каким лист будет «вписан в экран»
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -27,7 +72,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
     const el = viewportRef.current
     if (!el) return
     const measure = () => setVp({ w: el.clientWidth, h: el.clientHeight })
-    // меряем сразу и потом при каждом изменении (поворот телефона, размер окна)
+    // меряем сразу и потом при каждом изменении (поворот телефона, выбор точки)
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(el)
@@ -47,14 +92,23 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
       setSelectedId(point.id)
       return
     }
+    // нажатие мимо меток закрывает точку и возвращает к обходу
     const hit = (tap.target as HTMLElement | null)?.closest?.('[data-point-id]')
     setSelectedId(hit?.getAttribute('data-point-id') ?? null)
   }
 
-  const { t, handlers } = usePanZoom(viewportRef, content, maxScale, handleTap)
+  const { t, zoomBy, handlers } = usePanZoom(viewportRef, content, maxScale, handleTap)
 
   const selectedIndex = points?.findIndex(p => p.id === selectedId) ?? -1
   const selected = selectedIndex >= 0 ? points![selectedIndex] : null
+
+  const photosOf = (pointId: string) => photos?.filter(p => p.pointId === pointId) ?? []
+  const typeCounts = TYPE_KEYS.map(type => ({ type, count: photos?.filter(p => p.type === type).length ?? 0 }))
+  // фильтр по типу: на плане остаются только точки, где есть фото этого типа
+  const shownPoints = (points ?? []).map((p, i) => ({ p, n: i + 1 })).filter(
+    ({ p }) => filter === 'all' || p.id === selectedId || photosOf(p.id).some(ph => ph.type === filter),
+  )
+  const size = markerSize(t.s)
 
   if (sheet === null) {
     return (
@@ -65,37 +119,68 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
     )
   }
 
+  async function removeSheet() {
+    setMenuOpen(false)
+    if (!sheet) return
+    const ok = confirm(
+      `Удалить лист «${sheet.name}» со всеми точками и фото?\n\n` + 'Фото, уже сохранённые в папку телефона, останутся там.',
+    )
+    if (!ok) return
+    await deleteSheet(sheet.id)
+    onBack()
+  }
+
   return (
-    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: '#e9e9e9' }}>
-      <header style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--surface)' }}>
-        <button className="btn-link" onClick={onBack}>←</button>
-        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sheet?.name}</span>
-        <button
-          className="btn-link danger"
-          aria-label="Удалить лист"
-          onClick={async () => {
-            if (!sheet) return
-            const ok = confirm(
-              `Удалить лист «${sheet.name}» со всеми точками и фото?\n\n` +
-                'Фото, уже сохранённые в папку телефона, останутся там.',
-            )
-            if (!ok) return
-            await deleteSheet(sheet.id)
-            onBack()
-          }}
-        >
-          🗑
-        </button>
-        <button className="btn" style={{ padding: '8px 12px' }} onClick={() => setAdding(a => !a)}>
-          {adding ? 'Отмена' : '+ Точка'}
-        </button>
+    <div className={'sheet-screen' + (selected ? ' has-point' : '')}>
+      <header className="sheet-head">
+        <div className="row">
+          <button className="icon-btn" aria-label="Назад" onClick={onBack}>
+            <Icon name="back" />
+          </button>
+          <div className="title">
+            <b>{sheet?.name}</b>
+            <span>
+              {plural(points?.length ?? 0, 'точка', 'точки', 'точек')}, {photos?.length ?? 0} фото. {project?.name}
+            </span>
+          </div>
+          <button className="icon-btn" aria-label="Действия с листом" onClick={() => setMenuOpen(o => !o)}>
+            <Icon name="more" />
+          </button>
+        </div>
+        {!selected && (
+          <div className="chips">
+            <button className={'chip' + (filter === 'all' ? ' on' : '')} onClick={() => setFilter('all')}>
+              Все <em>{photos?.length ?? 0}</em>
+            </button>
+            {typeCounts.map(({ type, count }) => (
+              <button key={type} className={'chip' + (filter === type ? ' on' : '')} onClick={() => setFilter(type)}>
+                <i className="type-dot" style={{ background: typeColor(type) }} />
+                {PHOTO_TYPES[type]}
+                <em>{count}</em>
+              </button>
+            ))}
+          </div>
+        )}
       </header>
 
-      {/* подсказка и панель точки лежат поверх листа, чтобы не менять его размер и не сбрасывать приближение */}
-      <div style={{ flex: 1, position: 'relative' }}>
+      {menuOpen && (
+        <>
+          <div className="menu-scrim" onClick={() => setMenuOpen(false)} />
+          <div className="type-menu" style={{ top: 52, right: 12, left: 'auto', bottom: 'auto' }}>
+            <button style={{ color: 'var(--danger)' }} onClick={removeSheet}>
+              <Icon name="trash" />
+              Удалить лист
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* подсказка и кнопки лежат поверх листа, чтобы не менять его размер и не сбрасывать приближение */}
+      <div className="plan-area">
         {adding && (
-          <div style={{ position: 'absolute', zIndex: 1, left: 0, right: 0, top: 0, padding: '8px 12px', background: '#fff3cd', fontSize: 14 }}>
-            Нажмите на лист в том месте, где поставить точку.
+          <div className="hint-bar">
+            <span style={{ flex: 1 }}>Нажмите на план там, где поставить точку</span>
+            <button onClick={() => setAdding(false)}>Отмена</button>
           </div>
         )}
 
@@ -118,49 +203,57 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
               }}
             >
               <img src={url} alt="" draggable={false} style={{ width: '100%', height: '100%', display: 'block', pointerEvents: 'none', userSelect: 'none' }} />
-              {points?.map((p, i) => (
+              {shownPoints.map(({ p, n }) => (
                 <div
                   key={p.id}
                   data-point-id={p.id}
+                  className={'marker' + (p.id === selectedId ? ' on' : '')}
                   style={{
-                    position: 'absolute',
                     left: `${p.x}%`,
                     top: `${p.y}%`,
-                    width: MARKER,
-                    height: MARKER,
-                    marginLeft: -MARKER / 2,
-                    marginTop: -MARKER / 2,
-                    // метка не растёт при приближении листа
+                    width: size,
+                    height: size,
+                    marginLeft: -size / 2,
+                    marginTop: -size / 2,
+                    // метка не растёт вместе с листом, её размер считает markerSize
                     transform: `scale(${1 / t.s})`,
-                    borderRadius: '50%',
-                    background: p.id === selectedId ? '#1f6feb' : '#e5484d',
-                    border: '2px solid #fff',
-                    boxShadow: '0 1px 3px rgba(0,0,0,.4)',
-                    color: '#fff',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    background: ringBackground(photosOf(p.id)),
                   }}
                 >
-                  {i + 1}
+                  <span style={{ fontSize: Math.round(size * 0.5) }}>{n}</span>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {selected && (
-          <PointPanel
-            point={selected}
-            number={selectedIndex + 1}
-            photoType={photoType}
-            onPhotoTypeChange={setPhotoType}
-            onClose={() => setSelectedId(null)}
-          />
+        {!selected && !adding && (
+          <>
+            <div className="zoom-btns">
+              <button className="icon-btn" aria-label="Приблизить" onClick={() => zoomBy(1.5)}>
+                <Icon name="plus" />
+              </button>
+              <button className="icon-btn" aria-label="Отдалить" onClick={() => zoomBy(1 / 1.5)}>
+                <Icon name="minus" />
+              </button>
+            </div>
+            <button className="add-point" onClick={() => setAdding(true)}>
+              <Icon name="pin" />
+              Поставить точку
+            </button>
+          </>
         )}
       </div>
+
+      {selected && (
+        <PointPanel
+          point={selected}
+          number={selectedIndex + 1}
+          photoType={photoType}
+          onPhotoTypeChange={setPhotoType}
+          onClose={() => setSelectedId(null)}
+        />
+      )}
     </div>
   )
 }
