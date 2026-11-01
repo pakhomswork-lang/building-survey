@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { BackupButton } from './BackupButton'
-import { db, deleteProject } from './db'
+import { db, deleteProject, renameProject } from './db'
 import { FolderStatus } from './FolderStatus'
 import { SheetList } from './SheetList'
 import { navigate } from './useHashRoute'
@@ -22,7 +22,19 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
         <p className="muted">Объект не найден.</p>
       ) : (
         <>
-          <h2 style={{ fontSize: 20, margin: '4px 0 12px' }}>{project.name}</h2>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, margin: '4px 0 12px' }}>
+            <h2 style={{ fontSize: 20, margin: 0, flex: 1 }}>{project.name}</h2>
+            <button
+              className="btn-link"
+              style={{ padding: 0, flex: 'none' }}
+              onClick={async () => {
+                const name = prompt('Новое название объекта', project.name)?.trim()
+                if (name && name !== project.name) await renameProject(projectId, name)
+              }}
+            >
+              Переименовать
+            </button>
+          </div>
           <FolderStatus projectId={projectId} />
           {photoCount > 0 && (
             <button className="btn" style={{ width: '100%', marginBottom: 12 }} onClick={() => navigate({ screen: 'photos', projectId })}>

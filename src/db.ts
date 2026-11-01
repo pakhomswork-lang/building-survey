@@ -143,6 +143,10 @@ export async function createProject(name: string): Promise<Project> {
   return project
 }
 
+export async function renameProject(projectId: string, name: string) {
+  await db.projects.update(projectId, { name, updatedAt: Date.now() })
+}
+
 /** Новая точка на листе. x и y — в процентах от ширины и высоты листа. */
 export async function createPoint(projectId: string, sheetId: string, x: number, y: number): Promise<Point> {
   const point: Point = { ...(await newRecordFields()), projectId, sheetId, x, y, comment: '', roomId: null }

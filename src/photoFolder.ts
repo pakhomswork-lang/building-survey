@@ -52,12 +52,25 @@ function folderName(projectName: string) {
   return projectName.replace(/[\\/:*?"<>|]/g, '_').trim() || 'Объект'
 }
 
+/**
+ * Подпапка объекта. Имя запоминается при первом фото, чтобы после переименования
+ * объекта новые фото не уходили в другую папку.
+ */
+async function projectFolderName(projectId: string): Promise<string> {
+  const key = `photoFolder:${projectId}`
+  const saved = await db.settings.get(key)
+  if (saved) return saved.value
+  const project = await db.projects.get(projectId)
+  const name = folderName(project?.name ?? '')
+  await db.settings.put({ key, value: name })
+  return name
+}
+
 async function writeOne(root: FileSystemDirectoryHandle, fileName: string): Promise<boolean> {
   const file = await db.photoFiles.get(fileName)
   const photo = await db.photos.where('fileName').equals(fileName).first()
   if (!file || !photo) return false
-  const project = await db.projects.get(photo.projectId)
-  const dir = await root.getDirectoryHandle(folderName(project?.name ?? ''), { create: true })
+  const dir = await root.getDirectoryHandle(await projectFolderName(photo.projectId), { create: true })
   const fh = await dir.getFileHandle(fileName, { create: true })
   const w = await fh.createWritable()
   await w.write(file.blob)

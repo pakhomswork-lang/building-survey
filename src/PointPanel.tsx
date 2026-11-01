@@ -139,8 +139,8 @@ export function PointPanel({
       <button className="btn" style={{ width: '100%' }} onClick={openCamera}>
         📷 Камера: {PHOTO_TYPES[photoType]}
       </button>
-      <button className="btn-link" style={{ width: '100%', fontSize: 14 }} disabled={saving} onClick={() => camera.current?.click()}>
-        {saving ? 'Сохраняем…' : 'Обычная камера (лучше качество, по одному снимку)'}
+      <button className="btn btn-outline" style={{ width: '100%', marginTop: 8, fontSize: 15 }} disabled={saving} onClick={() => camera.current?.click()}>
+        {saving ? 'Сохраняем…' : 'Обычная камера (лучше качество)'}
       </button>
       {cameraOpen && (
         <CameraView

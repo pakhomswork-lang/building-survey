@@ -29,6 +29,7 @@ function App() {
   const [storage, setStorage] = useState<StorageStatus>('checking')
   // undefined — ещё загружаем, null — профиль не заполнен
   const [profile, setProfile] = useState<UserProfile | null | undefined>(undefined)
+  const [editingProfile, setEditingProfile] = useState(false)
   const route = useHashRoute()
 
   useEffect(() => {
@@ -38,6 +39,18 @@ function App() {
 
   if (profile === undefined) return null
   if (profile === null) return <ProfileForm onSaved={setProfile} />
+  if (editingProfile) {
+    return (
+      <ProfileForm
+        current={profile}
+        onSaved={p => {
+          setProfile(p)
+          setEditingProfile(false)
+        }}
+        onCancel={() => setEditingProfile(false)}
+      />
+    )
+  }
 
   if (route.screen === 'sheet') return <SheetViewer sheetId={route.sheetId} onBack={() => history.back()} />
 
@@ -52,7 +65,12 @@ function App() {
           <h1 style={{ fontSize: 22, margin: '0 0 16px' }}>Обследование</h1>
           <ProjectList onOpen={projectId => navigate({ screen: 'project', projectId })} />
           <p className="muted" style={{ marginTop: 24, fontSize: 13 }}>
-            Вы: {profile.name} (код {profile.code}). {storageText[storage]} Версия от {APP_VERSION}.
+            Вы: {profile.name} (код {profile.code}).{' '}
+            <button className="btn-link" style={{ padding: 0, fontSize: 13 }} onClick={() => setEditingProfile(true)}>
+              Изменить
+            </button>
+            <br />
+            {storageText[storage]} Версия от {APP_VERSION}.
           </p>
         </>
       )}
