@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Иконка: цвета видоискателя</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Варианты иконки приложения в цветах концепции В. Каждый показан крупно и в размере значка на экране телефона. */
+  :root {
+    --bg: #f4f5f7;
+    --text: #14171c;
+    --text-2: #4a5160;
+    --muted: #697181;
+    --line: rgba(20, 23, 28, 0.09);
+    font: 15px/1.45 'Onest', system-ui, sans-serif;
+    color: var(--text);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); padding: 32px 24px 48px; }
+  h1 { margin: 0; font-size: 26px; font-weight: 500; }
+  .lead { margin: 4px 0 24px; color: var(--text-2); max-width: 640px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; max-width: 1040px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  .head { display: flex; align-items: baseline; gap: 8px; }
+  .head b { font-size: 18px; font-weight: 500; }
+  .head span { color: var(--muted); font-size: 14px; }
+  .big { width: 160px; height: 160px; align-self: center; }
+  .big svg, .home svg { width: 100%; height: 100%; display: block; border-radius: 22.5%; box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.08); }
+  .card p { margin: 0; font-size: 14px; color: var(--text-2); }
+  /* как значок на рабочем столе: на светлых и тёмных обоях */
+  .homes { display: grid; grid-template-columns: 1fr 1fr; border-radius: 12px; overflow: hidden; }
+  .home-bg { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 0 12px; }
+  .home-bg.light { background: linear-gradient(160deg, #dfe6ee, #c9d3de); }
+  .home-bg.dark { background: linear-gradient(160deg, #2b3340, #161a21); color: #fff; }
+  .home { width: 56px; height: 56px; }
+  .home-bg small { font-size: 11px; }
+</style>
+</head>
+<body>
+<h1>Иконка «Видоискатель»: цвета</h1>
+<p class="lead">Одна форма, девять сочетаний цветов. Каждая крупно и в размере значка на экране телефона, на светлых и тёмных обоях. Выберите один, можно с правкой.</p>
+<div class="grid" id="grid"></div>
+
+<script>
+  // цвета типов фото, как в приложении
+  const C = { general: '#7d8696', defect: '#d4462f', measure: '#2f6fd4', node: '#2e8a5c', opening: '#b07a12' }
+  const INK = '#14171c'
+
+  /** Дуга кольца от a1 до a2 (в градусах, 0 — сверху). */
+  function arc(cx, cy, r, a1, a2) {
+    const p = a => [cx + r * Math.sin(a * Math.PI / 180), cy - r * Math.cos(a * Math.PI / 180)]
+    const [x1, y1] = p(a1), [x2, y2] = p(a2)
+    return `M${x1.toFixed(1)} ${y1.toFixed(1)}A${r} ${r} 0 ${a2 - a1 > 180 ? 1 : 0} 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`
+  }
+  /** Кольцо из долей цветов типов фото — как метка на плане. */
+  function ring(cx, cy, r, w, parts = [['general', 90], ['defect', 110], ['measure', 60], ['node', 50], ['opening', 50]], gap = 8) {
+    let a = 0
+    return parts.map(([t, d]) => {
+      const s = `<path d="${arc(cx, cy, r, a + gap / 2, a + d - gap / 2)}" stroke="${C[t]}" stroke-width="${w}" fill="none" stroke-linecap="round"/>`
+      a += d
+      return s
+    }).join('')
+  }
+
+  // видоискатель с трещиной: меняются только цвета фона, рамки и трещины
+  const finder = (bg, frame, crack) => `<rect width="512" height="512" fill="${bg}"/>
+    <path d="M104 184V104H184 M328 104H408V184 M408 328V408H328 M184 408H104V328" stroke="${frame}" stroke-width="30" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M232 150L270 214L238 262L286 318L262 362" stroke="${crack}" stroke-width="22" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`
+
+  const icons = [
+    { name: 'Как было', note: 'Исходный вариант для сравнения: графитовый фон, белая рамка, красная трещина.', svg: finder(INK, '#fff', C.defect) },
+    { name: 'Белый', note: 'Белый фон, чёрная рамка, красная трещина. Чисто, как лист чертежа.', svg: finder('#fff', INK, '#d4462f') },
+    { name: 'Красный', note: 'Красный фон, всё белое. Яркий, сразу находится на экране.', svg: finder('#c8402b', '#fff', '#fff') },
+    { name: 'Сигнальный жёлтый', note: 'Жёлтый, как разметка и каски на стройке. Чёрная рамка и трещина.', svg: finder('#f2b705', INK, INK) },
+    { name: 'Бетон', note: 'Серый, как бетон. Белая рамка, красная трещина.', svg: finder('#8a8f96', '#fff', '#e0412a') },
+    { name: 'Ночная синь', note: 'Глубокий тёмно-синий, белая рамка, тёплая жёлтая трещина.', svg: finder('#1d2b44', '#fff', '#f2b705') },
+    { name: 'Хвойный', note: 'Тёмно-зелёный, белая рамка, оранжевая трещина. Спокойный, не как у всех.', svg: finder('#1f4637', '#fff', '#f08a3c') },
+    { name: 'Кирпич', note: 'Цвет кирпичной кладки, светлая рамка, тёмная трещина.', svg: finder('#9b4a34', '#f4ece4', '#2a1a14') },
+    { name: 'Графит и жёлтый', note: 'Графитовый фон, жёлтая рамка, белая трещина. Строгий, с одним сигнальным цветом.', svg: finder(INK, '#f2b705', '#fff') },
+  ]
+
+  document.getElementById('grid').innerHTML = icons.map((ic, i) => {
+    const svg = `<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">${ic.svg}</svg>`
+    return `<section class="card" data-shot="icon-${i + 1}">
+      <div class="head"><b>${i + 1}. ${ic.name}</b></div>
+      <div class="big">${svg}</div>
+      <p>${ic.note}</p>
+      <div class="homes">
+        <div class="home-bg light"><div class="home">${svg}</div><small>Обследование</small></div>
+        <div class="home-bg dark"><div class="home">${svg}</div><small>Обследование</small></div>
+      </div>
+    </section>`
+  }).join('')
+</script>
+</body>
+</html>

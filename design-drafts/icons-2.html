@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Иконка: видоискатель и «О»</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Варианты иконки приложения в цветах концепции В. Каждый показан крупно и в размере значка на экране телефона. */
+  :root {
+    --bg: #f4f5f7;
+    --text: #14171c;
+    --text-2: #4a5160;
+    --muted: #697181;
+    --line: rgba(20, 23, 28, 0.09);
+    font: 15px/1.45 'Onest', system-ui, sans-serif;
+    color: var(--text);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); padding: 32px 24px 48px; }
+  h1 { margin: 0; font-size: 26px; font-weight: 500; }
+  .lead { margin: 4px 0 24px; color: var(--text-2); max-width: 640px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; max-width: 1040px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  .head { display: flex; align-items: baseline; gap: 8px; }
+  .head b { font-size: 18px; font-weight: 500; }
+  .head span { color: var(--muted); font-size: 14px; }
+  .big { width: 160px; height: 160px; align-self: center; }
+  .big svg, .home svg { width: 100%; height: 100%; display: block; border-radius: 22.5%; box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.08); }
+  .card p { margin: 0; font-size: 14px; color: var(--text-2); }
+  /* как значок на рабочем столе: на светлых и тёмных обоях */
+  .homes { display: grid; grid-template-columns: 1fr 1fr; border-radius: 12px; overflow: hidden; }
+  .home-bg { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 0 12px; }
+  .home-bg.light { background: linear-gradient(160deg, #dfe6ee, #c9d3de); }
+  .home-bg.dark { background: linear-gradient(160deg, #2b3340, #161a21); color: #fff; }
+  .home { width: 56px; height: 56px; }
+  .home-bg small { font-size: 11px; }
+</style>
+</head>
+<body>
+<h1>Иконка: видоискатель и буква «О»</h1>
+<p class="lead">Сочетания вариантов 4 и 6 из прошлого листа. Каждая крупно и в размере значка на экране телефона, на светлых и тёмных обоях. Выберите одну или две, дальше доработаем.</p>
+<div class="grid" id="grid"></div>
+
+<script>
+  // цвета типов фото, как в приложении
+  const C = { general: '#7d8696', defect: '#d4462f', measure: '#2f6fd4', node: '#2e8a5c', opening: '#b07a12' }
+  const INK = '#14171c'
+
+  /** Дуга кольца от a1 до a2 (в градусах, 0 — сверху). */
+  function arc(cx, cy, r, a1, a2) {
+    const p = a => [cx + r * Math.sin(a * Math.PI / 180), cy - r * Math.cos(a * Math.PI / 180)]
+    const [x1, y1] = p(a1), [x2, y2] = p(a2)
+    return `M${x1.toFixed(1)} ${y1.toFixed(1)}A${r} ${r} 0 ${a2 - a1 > 180 ? 1 : 0} 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`
+  }
+  /** Кольцо из долей цветов типов фото — как метка на плане. */
+  function ring(cx, cy, r, w, parts = [['general', 90], ['defect', 110], ['measure', 60], ['node', 50], ['opening', 50]], gap = 8) {
+    let a = 0
+    return parts.map(([t, d]) => {
+      const s = `<path d="${arc(cx, cy, r, a + gap / 2, a + d - gap / 2)}" stroke="${C[t]}" stroke-width="${w}" fill="none" stroke-linecap="round"/>`
+      a += d
+      return s
+    }).join('')
+  }
+
+  // корнеры видоискателя: цвет и толщина
+  const corners = (col, w = 30, m = 96, len = 76) =>
+    `<path d="M${m} ${m + len}V${m}H${m + len} M${512 - m - len} ${m}H${512 - m}V${m + len} M${512 - m} ${512 - m - len}V${512 - m}H${512 - m - len} M${m + len} ${512 - m}H${m}V${512 - m - len}" stroke="${col}" stroke-width="${w}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`
+  // трещина-зигзаг через центр
+  const crack = (col, w = 18) =>
+    `<path d="M236 120L270 184L236 236L280 290L248 340L262 392" stroke="${col}" stroke-width="${w}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`
+
+  const icons = [
+    {
+      name: 'Рамка и «О»',
+      note: 'Видоискатель снаружи, внутри буква «О» из цветов типов фото и точка в центре, как объектив.',
+      svg: `<rect width="512" height="512" fill="${INK}"/>
+        ${corners('#fff', 28, 88, 72)}
+        ${ring(256, 256, 104, 40)}
+        <circle cx="256" cy="256" r="20" fill="#fff"/>`,
+    },
+    {
+      name: 'Рамка и «О», светлая',
+      note: 'То же, но на белом фоне: тёмная рамка, цветное кольцо. Светлее и спокойнее на экране.',
+      svg: `<rect width="512" height="512" fill="#fff"/>
+        ${corners(INK, 28, 88, 72)}
+        ${ring(256, 256, 104, 40)}
+        <circle cx="256" cy="256" r="20" fill="${INK}"/>`,
+    },
+    {
+      name: 'Трещина через «О»',
+      note: 'Кольцо разорвано трещиной: буква «О» и дефект одним знаком. Без рамки, крупно.',
+      svg: `<rect width="512" height="512" fill="${INK}"/>
+        <circle cx="256" cy="256" r="136" stroke="#fff" stroke-width="56" fill="none"/>
+        <path d="M232 92L272 168L230 232L286 300L244 360L266 424" stroke="${INK}" stroke-width="44" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M232 92L272 168L230 232L286 300L244 360L266 424" stroke="${C.defect}" stroke-width="16" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+    },
+    {
+      name: 'Рамка, «О» и трещина',
+      note: 'Все три идеи: рамка камеры, кольцо «О» и трещина внутри объектива. Два цвета, без радуги.',
+      svg: `<rect width="512" height="512" fill="${INK}"/>
+        ${corners('#fff', 26, 80, 64)}
+        <circle cx="256" cy="256" r="112" stroke="#fff" stroke-width="36" fill="none"/>
+        <path d="M244 172L272 220L240 262L276 302L254 340" stroke="${C.defect}" stroke-width="16" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+    },
+    {
+      name: 'Цветные углы',
+      note: 'Углы видоискателя в цветах типов фото, в центре тёмная «О». Цвет есть, но не кольцом.',
+      svg: `<rect width="512" height="512" fill="#fff"/>
+        <path d="M96 172V96H172" stroke="${C.general}" stroke-width="32" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M340 96H416V172" stroke="${C.measure}" stroke-width="32" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M416 340V416H340" stroke="${C.defect}" stroke-width="32" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M172 416H96V340" stroke="${C.node}" stroke-width="32" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="256" cy="256" r="88" stroke="${INK}" stroke-width="40" fill="none"/>`,
+    },
+    {
+      name: 'Объектив',
+      note: 'Кольцо «О» как объектив: внешнее цветное, внутреннее тёмное с бликом. Без рамки.',
+      svg: `<rect width="512" height="512" fill="#f4f5f7"/>
+        ${ring(256, 256, 150, 40)}
+        <circle cx="256" cy="256" r="104" fill="${INK}"/>
+        <circle cx="256" cy="256" r="56" fill="#2a2f38"/>
+        <circle cx="226" cy="226" r="18" fill="#fff" opacity=".85"/>`,
+    },
+  ]
+
+  document.getElementById('grid').innerHTML = icons.map((ic, i) => {
+    const svg = `<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">${ic.svg}</svg>`
+    return `<section class="card" data-shot="icon-${i + 1}">
+      <div class="head"><b>${i + 1}. ${ic.name}</b></div>
+      <div class="big">${svg}</div>
+      <p>${ic.note}</p>
+      <div class="homes">
+        <div class="home-bg light"><div class="home">${svg}</div><small>Обследование</small></div>
+        <div class="home-bg dark"><div class="home">${svg}</div><small>Обследование</small></div>
+      </div>
+    </section>`
+  }).join('')
+</script>
+</body>
+</html>
