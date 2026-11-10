@@ -23,7 +23,7 @@
 
 ## Техника
 - Стек: Vite + React + TypeScript, PWA (vite-plugin-pwa), база на устройстве — IndexedDB через Dexie (`src/db.ts`), PDF — pdf.js.
-- Код в `src/`. Главное: `db.ts` (модель данных и функции записи), `App.tsx` (экраны), `useHashRoute.ts` (переходы через `#/…`), `SheetViewer.tsx` + `usePanZoom.ts` (лист и точки), `PointPanel.tsx` / `CameraView.tsx` (съёмка), `photos.ts` / `photoFolder.ts` (сохранение фото и запись в папку телефона), `PhotoGallery.tsx` / `PhotoView.tsx` / `ProjectPhotos.tsx` (просмотр), `backup.ts` / `zip.ts` (резервная копия).
+- Код в `src/`. Главное: `db.ts` (модель данных и функции записи), `App.tsx` (экраны), `useHashRoute.ts` (переходы через `#/…`), `SheetViewer.tsx` + `usePanZoom.ts` (лист и точки), `PointPanel.tsx` / `CameraView.tsx` (съёмка), `photos.ts` / `photoFolder.ts` (сохранение фото и запись в папку телефона), `PhotoGallery.tsx` / `PhotoView.tsx` / `ProjectPhotos.tsx` (просмотр), `backup.ts` / `zip.ts` (резервная копия). Сервер — Supabase (Р-28): `supabase.ts` (подключение), `account.ts` / `AccountForm.tsx` (вход); SQL для базы в папке `supabase/` (`01_…`, `02_…` запускаются по порядку в SQL Editor).
 - Команды: `npm run dev` (адрес http://localhost:5173/building-survey/), `npm run build`, `npm run lint`.
 - Публикация: push в `main` → GitHub Actions → https://pakhomswork-lang.github.io/building-survey/ (около минуты). Репозиторий https://github.com/pakhomswork-lang/building-survey. `gh` лежит в `C:\Program Files\GitHub CLI`.
 - Версия (время сборки) видна внизу главного экрана: по ней владелец проверяет, что телефон получил обновление.

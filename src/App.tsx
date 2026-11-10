@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { pushProfile, retryPendingProfile, signOut, syncProfileAfterLogin, useAccount } from './account'
+import { AccountForm } from './AccountForm'
 import { getUserProfile, type UserProfile } from './db'
 import { Icon } from './Icon'
 import { ProfileForm } from './ProfileForm'
@@ -6,6 +8,7 @@ import { ProjectList } from './ProjectList'
 import { ProjectPhotos } from './ProjectPhotos'
 import { ProjectScreen } from './ProjectScreen'
 import { SheetViewer } from './SheetViewer'
+import { supabase } from './supabase'
 import { navigate, useHashRoute } from './useHashRoute'
 import { APP_VERSION } from './version'
 
@@ -31,12 +34,42 @@ function App() {
   // undefined — ещё загружаем, null — профиль не заполнен
   const [profile, setProfile] = useState<UserProfile | null | undefined>(undefined)
   const [editingProfile, setEditingProfile] = useState(false)
+  const [loggingIn, setLoggingIn] = useState(false)
+  const [notice, setNotice] = useState('')
+  const account = useAccount()
+  const accountId = account?.userId
   const route = useHashRoute()
 
   useEffect(() => {
     requestPersistentStorage().then(setStorage)
     getUserProfile().then(setProfile)
   }, [])
+
+  // имя и код, которые не ушли на сервер без сети, досылаем при запуске и когда сеть появилась
+  useEffect(() => {
+    if (!accountId) return
+    const retry = () => retryPendingProfile(accountId)
+    retry()
+    window.addEventListener('online', retry)
+    return () => window.removeEventListener('online', retry)
+  }, [accountId])
+
+  async function afterLogin() {
+    setLoggingIn(false)
+    const { data } = await supabase.auth.getSession()
+    if (!data.session) return
+    const changed = await syncProfileAfterLogin(data.session.user.id)
+    if (changed) {
+      setProfile(changed)
+      setNotice(`Имя и код взяты из аккаунта: ${changed.name}, ${changed.code}.`)
+    }
+  }
+
+  async function logout() {
+    if (!confirm('Выйти из аккаунта на этом телефоне?\n\nОбъекты и фото на телефоне останутся.')) return
+    await signOut()
+    setNotice('')
+  }
 
   if (profile === undefined) return null
   if (profile === null) return <ProfileForm onSaved={setProfile} />
@@ -47,11 +80,14 @@ function App() {
         onSaved={p => {
           setProfile(p)
           setEditingProfile(false)
+          if (accountId) pushProfile(accountId)
         }}
         onCancel={() => setEditingProfile(false)}
       />
     )
   }
+
+  if (loggingIn) return <AccountForm onDone={afterLogin} onCancel={() => setLoggingIn(false)} />
 
   if (route.screen === 'sheet') return <SheetViewer key={route.sheetId} sheetId={route.sheetId} onBack={() => history.back()} />
 
@@ -71,6 +107,31 @@ function App() {
           </div>
           <h1 className="page-title">Объекты</h1>
           <ProjectList onOpen={projectId => navigate({ screen: 'project', projectId })} />
+          {account !== undefined && (
+            <div className="list" style={{ marginTop: 24 }}>
+              {account ? (
+                <div className="item">
+                  <Icon name="user" />
+                  <div className="grow">
+                    <b>Аккаунт: {account.email}</b>
+                    <small>{notice || 'Вход выполнен'}</small>
+                  </div>
+                  <button className="btn-link" onClick={logout}>
+                    Выйти
+                  </button>
+                </div>
+              ) : (
+                <button className="item" onClick={() => setLoggingIn(true)}>
+                  <Icon name="user" />
+                  <div className="grow">
+                    <b>Войти в аккаунт</b>
+                    <small>Чтобы работать вместе с бригадой</small>
+                  </div>
+                  <Icon name="right" />
+                </button>
+              )}
+            </div>
+          )}
           <p className="muted" style={{ marginTop: 32, fontSize: 12, lineHeight: '16px' }}>
             {profile.name}, код {profile.code}
             <br />
