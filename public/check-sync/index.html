@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Проверка сервера</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; background: #f5f5f5; color: #222; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.hint { margin: 0 0 12px; color: #666; font-size: 14px; }
+  section { background: #fff; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+  h2 { font-size: 16px; margin: 0 0 8px; }
+  button { display: block; width: 100%; box-sizing: border-box; padding: 14px; margin: 6px 0;
+    font-size: 16px; border: 0; border-radius: 8px; background: #1f6feb; color: #fff; cursor: pointer; }
+  button.secondary { background: #fff; color: #1f6feb; border: 2px solid #1f6feb; }
+  button:disabled { opacity: .4; }
+  input { width: 100%; box-sizing: border-box; padding: 12px; margin: 4px 0; font-size: 15px; border: 1px solid #ccc; border-radius: 8px; }
+  label { font-size: 13px; color: #555; }
+  #who, #summary { font-size: 14px; margin: 6px 0; }
+  #summary { font-weight: 600; }
+  #log { font: 12px/1.4 monospace; white-space: pre-wrap; background: #111; color: #9f9; padding: 8px; border-radius: 6px; max-height: 420px; overflow: auto; }
+  .ok { color: #9f9; } .bad { color: #f88; } .info { color: #ccc; }
+</style>
+</head>
+<body>
+<h1>Проверка сервера бригады</h1>
+<p class="hint">Шаг 14а. Проверяет правила базы после запуска <code>02_sync.sql</code>: кто что видит и меняет. Создаёт тестовый объект «ТЕСТ проверки» и в конце удаляет его.</p>
+
+<section>
+  <h2>1. Вход</h2>
+  <div id="who">Проверяю…</div>
+  <div id="loginBox" hidden>
+    <label for="email">Почта</label>
+    <input id="email" type="email" autocomplete="username">
+    <label for="password">Пароль</label>
+    <input id="password" type="password" autocomplete="current-password">
+    <button id="signin">Войти</button>
+  </div>
+</section>
+
+<section>
+  <h2>2. Проверка</h2>
+  <button id="run">Проверить всё</button>
+  <div id="summary"></div>
+</section>
+
+<section>
+  <h2>3. Отчёт</h2>
+  <button id="copy" class="secondary">Скопировать отчёт</button>
+  <div id="log"></div>
+</section>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/+esm'
+
+// тот же сервер и тот же вход, что в приложении
+const sb = createClient('https://rfhkuqboctwgsjdwfgjp.supabase.co', 'sb_publishable_yBFR84AlEiIDwSWklrYGCg_jA0ye_Nr')
+const $ = (id) => document.getElementById(id)
+const lines = []
+let passed = 0, failed = 0
+
+function log(text, cls = 'ok') {
+  lines.push(text)
+  const span = document.createElement('span')
+  span.className = cls
+  span.textContent = text + '\n'
+  $('log').appendChild(span)
+  $('log').scrollTop = $('log').scrollHeight
+}
+
+async function step(name, fn) {
+  try {
+    const note = await fn()
+    passed++
+    log('✔ ' + name + (note ? ' — ' + note : ''))
+  } catch (e) {
+    failed++
+    log('✘ ' + name + ' — ' + (e && e.message ? e.message : e), 'bad')
+  }
+}
+
+/** Сервер должен отказать. */
+async function mustFail(promise) {
+  const { data, error } = await promise
+  if (error) return 'отказ: ' + error.message
+  if (Array.isArray(data) && data.length === 0) return 'отказ: изменено 0'
+  throw new Error('СЕРВЕР ПРИНЯЛ — правило не работает')
+}
+
+const must = async (promise) => {
+  const { data, error } = await promise
+  if (error) throw new Error(error.message)
+  return data
+}
+
+async function currentUser() {
+  const { data } = await sb.auth.getSession()
+  return data.session ? data.session.user : null
+}
+
+async function showWho() {
+  const user = await currentUser()
+  $('who').textContent = user ? 'Вход: ' + user.email : 'Не выполнен. Войдите той же почтой, что в приложении.'
+  $('loginBox').hidden = !!user
+}
+
+$('signin').onclick = async () => {
+  const { error } = await sb.auth.signInWithPassword({ email: $('email').value.trim(), password: $('password').value })
+  if (error) alert('Не получилось: ' + error.message)
+  showWho()
+}
+
+const now = () => Date.now()
+const rec = (extra) => ({ id: crypto.randomUUID(), created_at: now(), updated_at: now(), ...extra })
+const jpeg = () => new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4, 0xff, 0xd9])], { type: 'image/jpeg' })
+
+$('run').onclick = async () => {
+  const user = await currentUser()
+  if (!user) { alert('Сначала войдите'); return }
+  $('run').disabled = true
+  passed = 0; failed = 0
+  $('summary').textContent = 'Идёт проверка…'
+  log('--- Проверка ' + new Date().toLocaleString('ru') + ', ' + user.email + ' ---', 'info')
+  const me = user.id
+  const stranger = crypto.randomUUID()
+  // P — свой объект, Q — объект, из которого выйдем, чтобы проверить «не участник»
+  const P = rec({ name: 'ТЕСТ проверки' })
+  const Q = rec({ name: 'ТЕСТ проверки (выход)' })
+  const S = rec({ project_id: P.id, name: 'Лист 1', sort_order: 0, width: 100, height: 50 })
+  const SQ = rec({ project_id: Q.id, name: 'Лист Q', sort_order: 0 })
+  const T = rec({ project_id: P.id, sheet_id: S.id, x: 10, y: 20, comment: 'первая' })
+  const F = rec({ project_id: P.id, sheet_id: S.id, point_id: T.id, type: 'defect', file_name: 'TST_20261111_120000_abcd.jpg', taken_at: now() })
+  const files = []
+
+  // мгновенные обновления: ждём событие о своей точке
+  let gotEvent = null
+  const eventArrived = new Promise((resolve) => { gotEvent = resolve })
+  const channel = sb.channel('check-sync')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'points', filter: 'project_id=eq.' + P.id },
+      (payload) => gotEvent(payload))
+  const subscribed = new Promise((resolve) => channel.subscribe((status) => { if (status === 'SUBSCRIBED') resolve() }))
+
+  await step('Таблицы на месте', async () => {
+    for (const t of ['projects', 'project_members', 'sheets', 'points', 'photos']) await must(sb.from(t).select('*').limit(1))
+  })
+  await step('Старая тестовая таблица spike_points удалена', async () => {
+    const { error } = await sb.from('spike_points').select('id').limit(1)
+    if (!error) throw new Error('таблица ещё есть')
+  })
+
+  // объект
+  await step('Создать свой объект', async () => {
+    const [row] = await must(sb.from('projects').insert(P).select())
+    if (row.author_id !== me) throw new Error('автор записан неверно')
+    if (!row.server_updated_at) throw new Error('нет времени сервера')
+  })
+  await step('Создатель сам стал участником (owner)', async () => {
+    const rows = await must(sb.from('project_members').select('role').eq('project_id', P.id).eq('user_id', me))
+    if (rows.length !== 1 || rows[0].role !== 'owner') throw new Error(JSON.stringify(rows))
+  })
+  await step('Нельзя создать объект от чужого имени', () =>
+    mustFail(sb.from('projects').insert(rec({ name: 'чужой', author_id: stranger }))))
+  await step('Нельзя добавить себе участника вручную', () =>
+    mustFail(sb.from('project_members').insert({ project_id: P.id, user_id: stranger })))
+  await step('Переименовать свой объект', async () => {
+    const rows = await must(sb.from('projects').update({ name: 'ТЕСТ проверки 2', updated_at: now() + 1 }).eq('id', P.id).select())
+    if (rows.length !== 1) throw new Error('изменено ' + rows.length)
+  })
+
+  // лист, точка, фото
+  await step('Добавить лист', async () => { await must(sb.from('sheets').insert(S)) })
+  await step('Картинка листа: загрузить в свою папку', async () => {
+    const path = P.id + '/' + S.id
+    await must(sb.storage.from('sheets').upload(path, jpeg(), { contentType: 'image/jpeg' }))
+    files.push(path)
+    await must(sb.from('sheets').update({ image_path: path, updated_at: now() + 1 }).eq('id', S.id))
+  })
+  await step('Картинка листа: прочитать', async () => {
+    const blob = await must(sb.storage.from('sheets').download(P.id + '/' + S.id))
+    if (blob.size !== jpeg().size) throw new Error('размер ' + blob.size)
+  })
+  await step('Нельзя загрузить картинку для несуществующего листа', () =>
+    mustFail(sb.storage.from('sheets').upload(P.id + '/' + crypto.randomUUID(), jpeg(), { contentType: 'image/jpeg' })))
+  await step('Нельзя загрузить в хранилище листов не картинку', () =>
+    mustFail(sb.storage.from('sheets').upload(P.id + '/' + S.id, new Blob(['текст'], { type: 'text/plain' }), { upsert: true, contentType: 'text/plain' })))
+
+  await step('Мгновенные обновления подключены', () =>
+    Promise.race([subscribed, new Promise((_, rej) => setTimeout(() => rej(new Error('нет подключения за 10 с')), 10000))]))
+  await step('Добавить точку и получить событие о ней', async () => {
+    const t0 = performance.now()
+    await must(sb.from('points').insert(T))
+    const ev = await Promise.race([eventArrived, new Promise((r) => setTimeout(() => r(null), 10000))])
+    return ev ? 'событие через ' + Math.round(performance.now() - t0) + ' мс' : 'точка записана, события нет за 10 с'
+  })
+  await step('Добавить запись о фото', async () => { await must(sb.from('photos').insert(F)) })
+  await step('Нельзя: фото неизвестного типа', () =>
+    mustFail(sb.from('photos').insert({ ...F, id: crypto.randomUUID(), type: 'selfie' })))
+  await step('Нельзя: точка от чужого имени', () =>
+    mustFail(sb.from('points').insert(rec({ project_id: P.id, sheet_id: S.id, x: 1, y: 1, author_id: stranger }))))
+  await step('Нельзя: точка вне листа (x = 150)', () =>
+    mustFail(sb.from('points').insert(rec({ project_id: P.id, sheet_id: S.id, x: 150, y: 1 }))))
+
+  // поздняя правка
+  await step('Поздняя правка побеждает старую', async () => {
+    const t = now() + 10000
+    await must(sb.from('points').update({ comment: 'новая', updated_at: t }).eq('id', T.id))
+    await must(sb.from('points').update({ comment: 'старая', updated_at: t - 5000 }).eq('id', T.id))
+    const [row] = await must(sb.from('points').select('comment').eq('id', T.id))
+    if (row.comment !== 'новая') throw new Error('осталась «' + row.comment + '»')
+  })
+
+  // не участник
+  await step('Второй объект с листом и картинкой', async () => {
+    await must(sb.from('projects').insert(Q))
+    await must(sb.from('sheets').insert(SQ))
+    const path = Q.id + '/' + SQ.id
+    await must(sb.storage.from('sheets').upload(path, jpeg(), { contentType: 'image/jpeg' }))
+    files.push(path)
+  })
+  await step('Выйти из второго объекта', async () => {
+    const rows = await must(sb.from('project_members').delete().eq('project_id', Q.id).eq('user_id', me).select())
+    if (rows.length !== 1) throw new Error('удалено ' + rows.length)
+  })
+  await step('Не участник: нельзя добавить лист', () =>
+    mustFail(sb.from('sheets').insert(rec({ project_id: Q.id, name: 'лишний' }))))
+  await step('Не участник: нельзя поставить точку', () =>
+    mustFail(sb.from('points').insert(rec({ project_id: Q.id, sheet_id: SQ.id, x: 1, y: 1 }))))
+  await step('Точку нельзя поставить на лист другого объекта', () =>
+    mustFail(sb.from('points').insert(rec({ project_id: P.id, sheet_id: SQ.id, x: 1, y: 1 }))))
+
+  // удаление листа (отметкой, как в приложении)
+  await step('Удалить свой лист без чужих точек', async () => {
+    const rows = await must(sb.from('sheets').update({ deleted: true, updated_at: now() + 20000 }).eq('id', S.id).select())
+    if (rows.length !== 1 || !rows[0].deleted) throw new Error('лист не помечен удалённым')
+  })
+
+  // уборка
+  await step('Уборка: удалить тестовые файлы и записи', async () => {
+    await must(sb.storage.from('sheets').remove(files))
+    await must(sb.from('photos').delete().eq('id', F.id))
+    await must(sb.from('points').delete().eq('id', T.id))
+    await must(sb.from('sheets').delete().in('id', [S.id, SQ.id]))
+    const gone = await must(sb.from('projects').delete().in('id', [P.id, Q.id]).select('id'))
+    if (gone.length !== 2) throw new Error('удалено объектов ' + gone.length + ' из 2')
+  })
+  sb.removeChannel(channel)
+
+  log('--- Итог: прошло ' + passed + ', не прошло ' + failed + ' ---', failed ? 'bad' : 'ok')
+  $('summary').textContent = failed ? '✘ Не прошло проверок: ' + failed + '. Скопируйте отчёт и пришлите.' : '✔ Все ' + passed + ' проверок прошли.'
+  $('run').disabled = false
+}
+
+$('copy').onclick = async () => {
+  try { await navigator.clipboard.writeText(lines.join('\n')); alert('Отчёт скопирован') }
+  catch { alert('Не удалось скопировать, сделайте снимок экрана') }
+}
+
+window.__sbLoaded = true
+showWho()
+</script>
+<script>
+  setTimeout(() => {
+    if (!window.__sbLoaded) document.getElementById('log').textContent = 'Не загрузилась библиотека Supabase (cdn.jsdelivr.net). Проверьте интернет и обновите страницу.'
+  }, 8000)
+</script>
+</body>
+</html>
