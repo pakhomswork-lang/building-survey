@@ -24,7 +24,7 @@
 </head>
 <body>
 <h1>Проверка сервера бригады</h1>
-<p class="hint">Шаг 14а. Проверяет правила базы после запуска <code>02_sync.sql</code>: кто что видит и меняет. Создаёт тестовый объект «ТЕСТ проверки» и в конце удаляет его.</p>
+<p class="hint">Шаги 14а и 15а. Проверяет правила базы после запуска <code>02_sync.sql</code>–<code>04_invites.sql</code>: кто что видит и меняет. Создаёт тестовый объект «ТЕСТ проверки» и в конце удаляет его.</p>
 
 <section>
   <h2>1. Вход</h2>
@@ -167,6 +167,37 @@ $('run').onclick = async () => {
     if (rows.length !== 1) throw new Error('изменено ' + rows.length)
   })
 
+  // приглашение по ссылке (шаг 15а)
+  let token1 = null
+  await step('Ссылка-приглашение: получить', async () => {
+    token1 = await must(sb.rpc('invite_token', { p_project: P.id }))
+    if (!token1) throw new Error('пусто')
+  })
+  await step('Ссылка-приглашение: та же при повторном запросе', async () => {
+    const again = await must(sb.rpc('invite_token', { p_project: P.id }))
+    if (again !== token1) throw new Error('ссылка поменялась сама')
+  })
+  await step('По ссылке видно название объекта', async () => {
+    const rows = await must(sb.rpc('invite_info', { p_token: token1 }))
+    if (rows.length !== 1 || rows[0].project_name !== 'ТЕСТ проверки 2' || !rows[0].already_member) throw new Error(JSON.stringify(rows))
+    return rows[0].project_name + ', участников ' + rows[0].members
+  })
+  await step('Вступить по ссылке, когда уже участник', async () => {
+    const pid = await must(sb.rpc('join_project', { p_token: token1 }))
+    if (pid !== P.id) throw new Error('вернулся не тот объект')
+  })
+  await step('Новая ссылка отключает старую', async () => {
+    const token2 = await must(sb.rpc('invite_token', { p_project: P.id, p_new: true }))
+    if (!token2 || token2 === token1) throw new Error('ссылка не поменялась')
+    const rows = await must(sb.rpc('invite_info', { p_token: token1 }))
+    if (rows.length) throw new Error('старая ссылка ещё показывает объект')
+    const { error } = await sb.rpc('join_project', { p_token: token1 })
+    if (!error) throw new Error('по старой ссылке можно вступить')
+    return 'отказ: ' + error.message
+  })
+  await step('Нельзя: вступить по выдуманной ссылке', () =>
+    mustFail(sb.rpc('join_project', { p_token: crypto.randomUUID() })))
+
   // лист, точка, фото
   await step('Добавить лист', async () => { await must(sb.from('sheets').insert(S)) })
   await step('Картинка листа: загрузить в свою папку', async () => {
@@ -227,6 +258,9 @@ $('run').onclick = async () => {
     mustFail(sb.from('points').insert(rec({ project_id: Q.id, sheet_id: SQ.id, x: 1, y: 1 }))))
   await step('Точку нельзя поставить на лист другого объекта', () =>
     mustFail(sb.from('points').insert(rec({ project_id: P.id, sheet_id: SQ.id, x: 1, y: 1 }))))
+
+  await step('Не участник: нельзя получить ссылку-приглашение', () =>
+    mustFail(sb.rpc('invite_token', { p_project: Q.id })))
 
   // удаление листа (отметкой, как в приложении)
   await step('Удалить свой лист без чужих точек', async () => {
