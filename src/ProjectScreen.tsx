@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { BackupButton } from './BackupButton'
+import { DeleteSheetDialog } from './DeleteSheetDialog'
 import { db, deleteProject, renameProject } from './db'
 import { FolderStatus } from './FolderStatus'
 import { plural } from './format'
@@ -19,6 +20,7 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
     return { sheets: sheets.filter(s => !s.deleted).length, photos: photos.filter(p => !p.deleted).length }
   }, [projectId])
   const [menuOpen, setMenuOpen] = useState(false)
+  const [deletingSheet, setDeletingSheet] = useState(false)
 
   if (project === undefined) return null
 
@@ -59,7 +61,7 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
           <Icon name="back" />
         </button>
         <span className="spacer" />
-        <button className="icon-btn" aria-label="Переименовать или удалить объект" onClick={() => setMenuOpen(o => !o)}>
+        <button className="icon-btn" aria-label="Действия с объектом" onClick={() => setMenuOpen(o => !o)}>
           <Icon name="more" />
         </button>
       </div>
@@ -72,6 +74,18 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
               <Icon name="edit" />
               Переименовать
             </button>
+            {(counts?.sheets ?? 0) > 0 && (
+              <button
+                style={{ color: 'var(--danger)' }}
+                onClick={() => {
+                  setMenuOpen(false)
+                  setDeletingSheet(true)
+                }}
+              >
+                <Icon name="trash" />
+                Удалить лист…
+              </button>
+            )}
             <button style={{ color: 'var(--danger)' }} onClick={remove}>
               <Icon name="trash" />
               Удалить объект
@@ -79,6 +93,8 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
           </div>
         </>
       )}
+
+      {deletingSheet && <DeleteSheetDialog projectId={projectId} onClose={() => setDeletingSheet(false)} />}
 
       <h1 className="page-title">{project.name}</h1>
       {counts && (

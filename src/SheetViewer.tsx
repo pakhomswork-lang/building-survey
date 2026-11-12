@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState } from 'react'
-import { createPoint, db, deleteSheet, PHOTO_TYPES, type Photo, type PhotoType } from './db'
+import { createPoint, db, PHOTO_TYPES, type Photo, type PhotoType } from './db'
 import { plural, TYPE_KEYS } from './format'
 import { Icon } from './Icon'
 import { PointPanel } from './PointPanel'
@@ -60,7 +60,6 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [photoType, setPhotoType] = useState<PhotoType>('general')
   const [filter, setFilter] = useState<'all' | PhotoType>('all')
-  const [menuOpen, setMenuOpen] = useState(false)
   const [sheetMenuOpen, setSheetMenuOpen] = useState(false)
 
   // размер области под лист: от него зависит, каким лист будет «вписан в экран»
@@ -117,17 +116,6 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
     )
   }
 
-  async function removeSheet() {
-    setMenuOpen(false)
-    if (!sheet) return
-    const ok = confirm(
-      `Удалить лист «${sheet.name}» со всеми точками и фото?\n\n` + 'Фото, уже сохранённые в папку телефона, останутся там.',
-    )
-    if (!ok) return
-    await deleteSheet(sheet.id)
-    onBack()
-  }
-
   return (
     <div className={'sheet-screen' + (selected ? ' has-point' : '')}>
       <header className="sheet-head">
@@ -148,9 +136,6 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
             <span>
               {plural(points?.length ?? 0, 'точка', 'точки', 'точек')}, {photos?.length ?? 0} фото. {project?.name}
             </span>
-          </button>
-          <button className="icon-btn" aria-label="Действия с листом" onClick={() => setMenuOpen(o => !o)}>
-            <Icon name="more" />
           </button>
         </div>
         {!selected && (
@@ -186,18 +171,6 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                 {s.name}
               </button>
             ))}
-          </div>
-        </>
-      )}
-
-      {menuOpen && (
-        <>
-          <div className="menu-scrim" onClick={() => setMenuOpen(false)} />
-          <div className="type-menu" style={{ top: 52, right: 12, left: 'auto', bottom: 'auto' }}>
-            <button style={{ color: 'var(--danger)' }} onClick={removeSheet}>
-              <Icon name="trash" />
-              Удалить лист
-            </button>
           </div>
         </>
       )}
