@@ -41,7 +41,8 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 /** Понятный текст для ошибок связи с сервером; остальные возвращает как есть. */
 export function explainNetwork(message: string): string {
   const m = message.toLowerCase()
-  if (m.includes(NO_ANSWER.toLowerCase())) return `${NO_ANSWER} (ждали ${TIMEOUT_MS / 1000} с). Проверьте интернет и попробуйте снова.`
-  if (m.includes('failed to fetch') || m.includes('network') || m.includes('load failed')) return 'Нет связи с сервером. Проверьте интернет.'
+  // из России сервер доступен только через VPN (Р-37)
+  if (m.includes(NO_ANSWER.toLowerCase())) return `${NO_ANSWER}. Включите VPN и попробуйте снова.`
+  if (m.includes('failed to fetch') || m.includes('network') || m.includes('load failed')) return 'Нет связи с сервером. Проверьте интернет и VPN.'
   return message
 }
