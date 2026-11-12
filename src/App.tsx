@@ -9,6 +9,7 @@ import { ProjectPhotos } from './ProjectPhotos'
 import { ProjectScreen } from './ProjectScreen'
 import { SheetViewer } from './SheetViewer'
 import { supabase } from './supabase'
+import { startAutoPull } from './pull'
 import { startAutoPush } from './sync'
 import { navigate, useHashRoute } from './useHashRoute'
 import { APP_VERSION } from './version'
@@ -48,17 +49,17 @@ function App() {
   }, [])
 
   // запоминаем вход в базе телефона: новые записи подписываются аккаунтом;
-  // пока вошли — общие объекты сами уходят на сервер (Р-32)
+  // пока вошли — общие объекты сами уходят на сервер (Р-32) и приходят с него (Р-33)
   useEffect(() => {
     if (!accountKnown) return
-    let stop: (() => void) | undefined
+    let stops: (() => void)[] = []
     let cancelled = false
     setAccountId(accountId ?? null).then(() => {
-      if (accountId && !cancelled) stop = startAutoPush()
+      if (accountId && !cancelled) stops = [startAutoPush(), startAutoPull()]
     })
     return () => {
       cancelled = true
-      stop?.()
+      stops.forEach(stop => stop())
     }
   }, [accountKnown, accountId])
 

@@ -8,8 +8,9 @@ import { useObjectUrl } from './useObjectUrl'
 
 /** Фото на весь экран с приближением пальцами. При смене фото масштаб сбрасывается (новый key). */
 function ZoomImage({ fileName }: { fileName: string }) {
-  const blob = useLiveQuery(async () => (await db.photoFiles.get(fileName))?.blob, [fileName])
-  const url = useObjectUrl(blob)
+  // null — файла нет в этом телефоне (фото снято на другом устройстве, Р-13)
+  const blob = useLiveQuery(async () => (await db.photoFiles.get(fileName))?.blob ?? null, [fileName])
+  const url = useObjectUrl(blob ?? undefined)
   const viewportRef = useRef<HTMLDivElement>(null)
   const [vp, setVp] = useState<{ w: number; h: number } | null>(null)
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null)
@@ -51,6 +52,13 @@ function ZoomImage({ fileName }: { fileName: string }) {
             userSelect: 'none',
           }}
         />
+      )}
+      {blob === null && (
+        <p style={{ position: 'absolute', top: '45%', left: 24, right: 24, textAlign: 'center', color: '#fff', opacity: 0.8 }}>
+          Фото снято на другом устройстве и хранится там.
+          <br />
+          {fileName}
+        </p>
       )}
     </div>
   )

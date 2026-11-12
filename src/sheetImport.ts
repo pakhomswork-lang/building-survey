@@ -26,6 +26,17 @@ async function makeThumb(source: HTMLCanvasElement): Promise<Blob> {
   return canvasToJpeg(canvas, 0.8)
 }
 
+/** Превью и размер для картинки листа, пришедшей с сервера. */
+export async function sheetImageFromBlob(blob: Blob): Promise<{ thumb: Blob; width: number; height: number }> {
+  const bitmap = await createImageBitmap(blob)
+  const canvas = document.createElement('canvas')
+  canvas.width = bitmap.width
+  canvas.height = bitmap.height
+  canvas.getContext('2d')!.drawImage(bitmap, 0, 0)
+  bitmap.close()
+  return { thumb: await makeThumb(canvas), width: canvas.width, height: canvas.height }
+}
+
 /** Белый холст нужного размера: у PDF и PNG бывает прозрачный фон, а JPEG прозрачность не умеет. */
 function whiteCanvas(width: number, height: number) {
   const canvas = document.createElement('canvas')
