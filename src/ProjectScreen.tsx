@@ -1,6 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
-import { BackupButton } from './BackupButton'
 import { DeleteSheetDialog } from './DeleteSheetDialog'
 import { db, deleteProject, renameProject } from './db'
 import { FolderStatus } from './FolderStatus'
@@ -117,7 +116,6 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
         </button>
         <TeamStatus projectId={projectId} />
         <FolderStatus projectId={projectId} />
-        <BackupButton projectId={projectId} />
       </div>
     </section>
   )
