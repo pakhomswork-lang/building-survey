@@ -255,8 +255,8 @@ create policy "sheets files: загружает автор листа" on storag
   for insert to authenticated
   with check (bucket_id = 'sheets' and exists (
     select 1 from public.sheets s
-    where s.project_id::text = (storage.foldername(name))[1]
-      and s.id::text = storage.filename(name)
+    where s.project_id::text = (storage.foldername(objects.name))[1]
+      and s.id::text = storage.filename(objects.name)
       and s.author_id = (select auth.uid())
   ));
 create policy "sheets files: заменяет автор" on storage.objects
@@ -264,8 +264,8 @@ create policy "sheets files: заменяет автор" on storage.objects
   using (bucket_id = 'sheets' and owner_id = (select auth.jwt() ->> 'sub'))
   with check (bucket_id = 'sheets' and exists (
     select 1 from public.sheets s
-    where s.project_id::text = (storage.foldername(name))[1]
-      and s.id::text = storage.filename(name)
+    where s.project_id::text = (storage.foldername(objects.name))[1]
+      and s.id::text = storage.filename(objects.name)
       and s.author_id = (select auth.uid())
   ));
 create policy "sheets files: удаляет автор" on storage.objects

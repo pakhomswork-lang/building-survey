@@ -235,13 +235,18 @@ $('run').onclick = async () => {
   })
 
   // уборка
+  // уборка идёт до конца, даже если что-то выше не прошло
   await step('Уборка: удалить тестовые файлы и записи', async () => {
-    await must(sb.storage.from('sheets').remove(files))
-    await must(sb.from('photos').delete().eq('id', F.id))
-    await must(sb.from('points').delete().eq('id', T.id))
-    await must(sb.from('sheets').delete().in('id', [S.id, SQ.id]))
-    const gone = await must(sb.from('projects').delete().in('id', [P.id, Q.id]).select('id'))
-    if (gone.length !== 2) throw new Error('удалено объектов ' + gone.length + ' из 2')
+    const problems = []
+    const tryDo = async (what, promise) => { const { error } = await promise; if (error) problems.push(what + ': ' + error.message) }
+    if (files.length) await tryDo('файлы', sb.storage.from('sheets').remove(files))
+    await tryDo('фото', sb.from('photos').delete().eq('id', F.id))
+    await tryDo('точки', sb.from('points').delete().eq('id', T.id))
+    await tryDo('листы', sb.from('sheets').delete().in('id', [S.id, SQ.id]))
+    const { data: gone, error } = await sb.from('projects').delete().in('id', [P.id, Q.id]).select('id')
+    if (error) problems.push('объекты: ' + error.message)
+    else if (gone.length !== 2) problems.push('удалено объектов ' + gone.length + ' из 2')
+    if (problems.length) throw new Error(problems.join('; '))
   })
   sb.removeChannel(channel)
 
