@@ -114,7 +114,35 @@ async function downloadSheetImages() {
   }
 }
 
-async function pullOnce() {
+/**
+ * Объекты, которых для нас на сервере больше нет (их стёрли или мы вышли из них),
+ * убираем и из телефона. Иначе они висят «призраками»: в списке есть, а сервер их не знает (Р-36).
+ * Трогаем только объекты, которые уже были на сервере (pushedAt есть).
+ */
+async function dropGhostProjects(userId: string) {
+  const { data, error } = await supabase.from('project_members').select('project_id').eq('user_id', userId)
+  if (error) throw new Error(error.message)
+  const mine = new Set((data as { project_id: string }[]).map(r => r.project_id))
+  const candidates = (await db.projects.toArray()).filter(
+    p => p.shared && !p.deleted && p.pushedAt !== undefined && !mine.has(p.id),
+  )
+  if (!candidates.length) return
+  // переспрашиваем: объект мог только что уйти на сервер, пока мы читали список
+  const { data: still, error: e2 } = await supabase.from('projects').select('id').in('id', candidates.map(p => p.id))
+  if (e2) throw new Error(e2.message)
+  const visible = new Set((still as { id: string }[]).map(r => r.id))
+  for (const p of candidates) {
+    if (visible.has(p.id)) continue
+    // помечаем удалённым только в телефоне: на сервер это не отправляется (pushedAt = updatedAt)
+    await db.projects.update(p.id, { deleted: true, pushedAt: p.updatedAt })
+    const sheetIds = await db.sheets.where('projectId').equals(p.id).primaryKeys()
+    await db.sheetImages.bulkDelete(sheetIds)
+  }
+}
+
+async function pullOnce(userId: string) {
+  await dropGhostProjects(userId)
+
   const projects = await fetchChanged('projects')
   const sheets = await fetchChanged('sheets')
   const points = await fetchChanged('points')
@@ -154,7 +182,7 @@ export async function pullAll() {
       if (!navigator.onLine) return
       const { data } = await supabase.auth.getSession()
       if (!data.session) return
-      await pullOnce()
+      await pullOnce(data.session.user.id)
     } while (again)
   } catch (e) {
     // не страшно: попробуем при следующем событии или через несколько минут

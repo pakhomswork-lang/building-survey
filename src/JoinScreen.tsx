@@ -12,6 +12,8 @@ export function JoinScreen({ token, account, onLogin }: { token: string; account
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [joinedId, setJoinedId] = useState<string | null>(null)
+  // объект долго не приходит с сервера
+  const [slow, setSlow] = useState(false)
   const userId = account?.userId
 
   useEffect(() => {
@@ -24,6 +26,11 @@ export function JoinScreen({ token, account, onLogin }: { token: string; account
   useEffect(() => {
     if (joinedId && arrived) location.replace(`#/project/${joinedId}`)
   }, [joinedId, arrived])
+  useEffect(() => {
+    if (!joinedId) return
+    const timer = setTimeout(() => setSlow(true), 40_000)
+    return () => clearTimeout(timer)
+  }, [joinedId])
 
   async function join() {
     if (!userId) return
@@ -50,7 +57,14 @@ export function JoinScreen({ token, account, onLogin }: { token: string; account
       </>
     )
   } else if (joinedId) {
-    body = <p style={{ fontSize: 15 }}>Готово, загружаем объект с сервера…</p>
+    body = slow ? (
+      <p style={{ fontSize: 15, lineHeight: 1.45 }}>
+        Вы в объекте, но загрузить его пока не получилось: сервер долго не отвечает. Объект появится в списке сам, когда
+        связь наладится.
+      </p>
+    ) : (
+      <p style={{ fontSize: 15 }}>Готово, загружаем объект с сервера…</p>
+    )
   } else if (info === null) {
     body = <p style={{ fontSize: 15, lineHeight: 1.45 }}>Ссылка не работает: её заменили на новую или объект удалён. Попросите у коллеги свежую ссылку.</p>
   } else if (info) {

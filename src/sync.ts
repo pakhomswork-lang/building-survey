@@ -8,7 +8,7 @@
 import { liveQuery } from 'dexie'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { adoptDeviceRecords, db, getAccountId, getMyIds, type Photo, type Point, type Project, type Sheet, type SheetImage, type SyncFields } from './db'
-import { supabase } from './supabase'
+import { explainNetwork, supabase } from './supabase'
 
 const BUCKET = 'sheets'
 /** Сколько записей отправлять за один запрос. */
@@ -94,7 +94,8 @@ const photoRow = (p: Photo) => ({
 /** Понятный текст ошибки. */
 function explain(message: string): string {
   const m = message.toLowerCase()
-  if (m.includes('failed to fetch') || m.includes('network') || m.includes('load failed')) return 'нет связи с сервером'
+  if (m.includes('failed to fetch') || m.includes('network') || m.includes('load failed') || m.includes('сервер не отвечает'))
+    return explainNetwork(message)
   if (m.includes('row-level security')) return 'сервер не принял: нет прав'
   if (m.includes('jwt')) return 'вход устарел, войдите в аккаунт заново'
   return message

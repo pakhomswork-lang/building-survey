@@ -4,14 +4,9 @@
 import { pushProfile } from './account'
 import { resetPullCursors } from './db'
 import { pullAll } from './pull'
-import { supabase } from './supabase'
+import { explainNetwork, supabase } from './supabase'
 
-/** Понятный текст ошибки сервера. */
-function explain(message: string): string {
-  const m = message.toLowerCase()
-  if (m.includes('failed to fetch') || m.includes('network') || m.includes('load failed')) return 'Нет связи с сервером. Проверьте интернет.'
-  return message
-}
+const explain = explainNetwork
 
 /** Адрес, который отправляем коллеге. */
 export function inviteLink(token: string): string {

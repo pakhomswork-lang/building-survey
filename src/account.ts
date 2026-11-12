@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { db, getUserProfile, saveUserProfile, type UserProfile } from './db'
-import { supabase } from './supabase'
+import { explainNetwork, supabase } from './supabase'
 
 /** Вошедший пользователь. */
 export interface Account {
@@ -34,7 +34,7 @@ function explain(error: { message: string; code?: string }): string {
   if (m.includes('already registered') || error.code === 'user_already_exists') return 'Эта почта уже зарегистрирована. Нажмите «Войти».'
   if (m.includes('password') && m.includes('6')) return 'Пароль должен быть не короче 6 знаков.'
   if (m.includes('email') && m.includes('invalid')) return 'Почта написана с ошибкой.'
-  if (m.includes('failed to fetch') || m.includes('network')) return 'Нет связи с сервером. Проверьте интернет.'
+  if (m.includes('failed to fetch') || m.includes('network') || m.includes('сервер не отвечает')) return explainNetwork(error.message)
   return 'Не получилось: ' + error.message
 }
 
