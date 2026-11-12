@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useAccount } from './account'
 import { db, shareProject } from './db'
 import { Icon } from './Icon'
+import { InviteDialog } from './InviteDialog'
 import { countPending, pushAll, useOnline, usePushState } from './sync'
 
 /**
@@ -16,6 +17,7 @@ export function TeamStatus({ projectId }: { projectId: string }) {
   const online = useOnline()
   const push = usePushState()
   const [asking, setAsking] = useState(false)
+  const [inviting, setInviting] = useState(false)
 
   if (!project || account === undefined) return null
 
@@ -83,12 +85,25 @@ export function TeamStatus({ projectId }: { projectId: string }) {
   } else text = `Ждёт отправки: ${n}`
 
   return (
-    <button className="item" onClick={() => account && pushAll()} aria-label="Работа с бригадой: отправить сейчас">
-      <Icon name={n === 0 && account ? 'check' : 'user'} />
-      <div className="grow">
-        <b>Работа с бригадой</b>
-        <small style={warn ? { color: 'var(--danger)' } : undefined}>{text}</small>
-      </div>
-    </button>
+    <>
+      <button className="item" onClick={() => account && pushAll()} aria-label="Работа с бригадой: отправить сейчас">
+        <Icon name={n === 0 && account ? 'check' : 'user'} />
+        <div className="grow">
+          <b>Работа с бригадой</b>
+          <small style={warn ? { color: 'var(--danger)' } : undefined}>{text}</small>
+        </div>
+      </button>
+      {account && (
+        <button className="item" onClick={() => setInviting(true)}>
+          <Icon name="plus" />
+          <div className="grow">
+            <b>Пригласить коллегу</b>
+            <small>Ссылка на этот объект</small>
+          </div>
+          <Icon name="right" />
+        </button>
+      )}
+      {inviting && <InviteDialog projectId={projectId} projectName={project.name} onClose={() => setInviting(false)} />}
+    </>
   )
 }

@@ -3,6 +3,7 @@ import { pushProfile, retryPendingProfile, signOut, syncProfileAfterLogin, useAc
 import { AccountForm } from './AccountForm'
 import { getUserProfile, setAccountId, type UserProfile } from './db'
 import { Icon } from './Icon'
+import { JoinScreen } from './JoinScreen'
 import { ProfileForm } from './ProfileForm'
 import { ProjectList } from './ProjectList'
 import { ProjectPhotos } from './ProjectPhotos'
@@ -106,6 +107,11 @@ function App() {
   }
 
   if (loggingIn) return <AccountForm onDone={afterLogin} onCancel={() => setLoggingIn(false)} />
+
+  if (route.screen === 'join') {
+    if (account === undefined) return null
+    return <JoinScreen token={route.token} account={account} onLogin={() => setLoggingIn(true)} />
+  }
 
   if (route.screen === 'sheet') return <SheetViewer key={route.sheetId} sheetId={route.sheetId} onBack={() => history.back()} />
 

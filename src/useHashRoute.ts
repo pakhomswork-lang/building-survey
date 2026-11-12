@@ -8,12 +8,15 @@ export type Route =
   | { screen: 'project'; projectId: string }
   | { screen: 'photos'; projectId: string }
   | { screen: 'sheet'; sheetId: string }
+  /** Ссылка-приглашение в общий объект (Р-35). */
+  | { screen: 'join'; token: string }
 
 function parse(hash: string): Route {
   const [, screen, id] = hash.replace(/^#/, '').split('/')
   if (screen === 'project' && id) return { screen: 'project', projectId: id }
   if (screen === 'photos' && id) return { screen: 'photos', projectId: id }
   if (screen === 'sheet' && id) return { screen: 'sheet', sheetId: id }
+  if (screen === 'join' && id) return { screen: 'join', token: id }
   return { screen: 'projects' }
 }
 
@@ -21,6 +24,7 @@ export function navigate(route: Route) {
   if (route.screen === 'project') location.hash = `/project/${route.projectId}`
   else if (route.screen === 'photos') location.hash = `/photos/${route.projectId}`
   else if (route.screen === 'sheet') location.hash = `/sheet/${route.sheetId}`
+  else if (route.screen === 'join') location.hash = `/join/${route.token}`
   else location.hash = '/'
 }
 

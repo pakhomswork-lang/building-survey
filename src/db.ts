@@ -142,11 +142,16 @@ export async function getAccountId(): Promise<string | null> {
   return (await db.settings.get('accountId'))?.value ?? null
 }
 
+/** Забыть, докуда забрали данные с сервера: следующее получение заберёт всё заново. */
+export async function resetPullCursors() {
+  await db.settings.where('key').startsWith('pull:').delete()
+}
+
 /** Запоминаем вход: новые записи будут подписаны аккаунтом. null — вышли. */
 export async function setAccountId(accountId: string | null) {
   const before = await getAccountId()
   // вошли в другой аккаунт — забираем его данные с сервера с самого начала (Р-33)
-  if (accountId && before && before !== accountId) await db.settings.where('key').startsWith('pull:').delete()
+  if (accountId && before && before !== accountId) await resetPullCursors()
   if (accountId) await db.settings.put({ key: 'accountId', value: accountId })
   else await db.settings.delete('accountId')
 }
