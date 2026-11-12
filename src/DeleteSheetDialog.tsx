@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
-import { db, deleteSheet, type Sheet } from './db'
+import { db, deleteSheet, getMyIds, type Sheet } from './db'
 import { plural } from './format'
 import { Icon } from './Icon'
 
@@ -13,12 +13,16 @@ const CONFIRM_WORD = 'удалить'
  */
 export function DeleteSheetDialog({ projectId, onClose }: { projectId: string; onClose: () => void }) {
   const data = useLiveQuery(async () => {
-    const [sheets, points, photos] = await Promise.all([
+    const [project, myIds, sheets, points, photos] = await Promise.all([
+      db.projects.get(projectId),
+      getMyIds(),
       db.sheets.where('projectId').equals(projectId).sortBy('order'),
       db.points.where('projectId').equals(projectId).toArray(),
       db.photos.where('projectId').equals(projectId).toArray(),
     ])
     return {
+      shared: !!project?.shared,
+      myIds,
       sheets: sheets.filter(s => !s.deleted),
       points: points.filter(p => !p.deleted),
       photos: photos.filter(p => !p.deleted),
@@ -34,6 +38,14 @@ export function DeleteSheetDialog({ projectId, onClose }: { projectId: string; o
     return points ? `${plural(points, 'точка', 'точки', 'точек')}, ${photos} фото` : 'Точек нет'
   }
   const wordOk = word.trim().toLowerCase() === CONFIRM_WORD
+
+  /** Почему лист нельзя удалить (в общем объекте), или null. Сервер проверяет то же (Р-30). */
+  const blockReason = (s: Sheet): string | null => {
+    if (!data?.shared) return null
+    if (!data.myIds.has(s.authorId)) return 'Лист добавил другой участник, удалить может только он'
+    if (data.points.some(p => p.sheetId === s.id && !data.myIds.has(p.authorId))) return 'На листе есть точки других участников'
+    return null
+  }
 
   async function remove() {
     if (!chosen || !wordOk) return
@@ -51,16 +63,19 @@ export function DeleteSheetDialog({ projectId, onClose }: { projectId: string; o
           <>
             <b style={{ fontWeight: 500, fontSize: 18 }}>Какой лист удалить?</b>
             <div className="list" style={{ marginTop: 16 }}>
-              {data?.sheets.map(s => (
-                <button key={s.id} className="item" onClick={() => setChosen(s)}>
-                  <Icon name="file" />
-                  <div className="grow">
-                    <b>{s.name}</b>
-                    <small>{countText(s.id)}</small>
-                  </div>
-                  <Icon name="right" />
-                </button>
-              ))}
+              {data?.sheets.map(s => {
+                const reason = blockReason(s)
+                return (
+                  <button key={s.id} className="item" disabled={!!reason} onClick={() => setChosen(s)}>
+                    <Icon name="file" />
+                    <div className="grow">
+                      <b>{s.name}</b>
+                      <small>{reason ?? countText(s.id)}</small>
+                    </div>
+                    {!reason && <Icon name="right" />}
+                  </button>
+                )
+              })}
             </div>
             <button className="secondary-btn" style={{ marginTop: 16 }} onClick={onClose}>
               Отмена

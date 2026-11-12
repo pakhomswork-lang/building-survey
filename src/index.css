@@ -679,6 +679,15 @@ html {
   border-top: 1px solid var(--line);
 }
 
+/* пункт, который сейчас нельзя нажать: название бледное, пояснение видно */
+.item:disabled {
+  cursor: default;
+}
+
+.item:disabled b {
+  opacity: 0.5;
+}
+
 .item > .icon {
   color: var(--text-muted);
 }

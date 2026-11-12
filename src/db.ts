@@ -18,10 +18,14 @@ export interface SyncFields {
   updatedAt: number
   /** Удалённые записи не стираем, а помечаем, чтобы удаление дошло до других устройств. */
   deleted: boolean
+  /** Какая правка (updatedAt) уже лежит на сервере. Не совпадает с updatedAt — ждёт отправки. */
+  pushedAt?: number
 }
 
 export interface Project extends SyncFields {
   name: string
+  /** Включено «Работать с бригадой»: объект синхронизируется с сервером (Р-32). */
+  shared?: boolean
 }
 
 export interface Sheet extends SyncFields {
@@ -29,6 +33,8 @@ export interface Sheet extends SyncFields {
   name: string
   /** Порядок листов в списке. */
   order: number
+  /** Картинка листа уже загружена на сервер. */
+  imagePushed?: boolean
 }
 
 export interface Point extends SyncFields {
@@ -131,10 +137,63 @@ export async function getUserId(): Promise<string> {
   return userId
 }
 
+/** id аккаунта, если на телефоне выполнен вход, иначе null. */
+export async function getAccountId(): Promise<string | null> {
+  return (await db.settings.get('accountId'))?.value ?? null
+}
+
+/** Запоминаем вход: новые записи будут подписаны аккаунтом. null — вышли. */
+export async function setAccountId(accountId: string | null) {
+  if (accountId) await db.settings.put({ key: 'accountId', value: accountId })
+  else await db.settings.delete('accountId')
+}
+
+/**
+ * Автор новых записей: аккаунт, если вошли, иначе случайный id телефона.
+ * Записи с id телефона получат автора-аккаунт, когда объект станет общим (Р-32).
+ */
+export async function getAuthorId(): Promise<string> {
+  return (await getAccountId()) ?? (await getUserId())
+}
+
+/** Свои ли это записи: подписаны этим телефоном или аккаунтом, в который на нём вошли. */
+export async function getMyIds(): Promise<Set<string>> {
+  const ids = new Set([await getUserId()])
+  const account = await getAccountId()
+  if (account) ids.add(account)
+  return ids
+}
+
 /** Заполняет общие поля для новой записи. */
 export async function newRecordFields(): Promise<SyncFields> {
   const now = Date.now()
-  return { id: crypto.randomUUID(), authorId: await getUserId(), createdAt: now, updatedAt: now, deleted: false }
+  return { id: crypto.randomUUID(), authorId: await getAuthorId(), createdAt: now, updatedAt: now, deleted: false }
+}
+
+/**
+ * Записи объекта, подписанные id телефона, переподписываем аккаунтом:
+ * сервер принимает записи только от имени вошедшего.
+ */
+export async function adoptDeviceRecords(projectId: string, accountId: string) {
+  const deviceId = await getUserId()
+  if (deviceId === accountId) return
+  await db.transaction('rw', [db.projects, db.sheets, db.points, db.photos], async () => {
+    const project = await db.projects.get(projectId)
+    if (project?.authorId === deviceId) await db.projects.update(projectId, { authorId: accountId })
+    for (const table of [db.sheets, db.points, db.photos] as const) {
+      await (table as typeof db.sheets)
+        .where('projectId')
+        .equals(projectId)
+        .filter(r => r.authorId === deviceId)
+        .modify({ authorId: accountId })
+    }
+  })
+}
+
+/** «Работать с бригадой»: объект начинает уходить на сервер. */
+export async function shareProject(projectId: string, accountId: string) {
+  await adoptDeviceRecords(projectId, accountId)
+  await db.projects.update(projectId, { shared: true })
 }
 
 export async function createProject(name: string): Promise<Project> {

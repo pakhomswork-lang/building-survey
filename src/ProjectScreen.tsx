@@ -7,6 +7,7 @@ import { FolderStatus } from './FolderStatus'
 import { plural } from './format'
 import { Icon } from './Icon'
 import { SheetList } from './SheetList'
+import { TeamStatus } from './TeamStatus'
 import { navigate } from './useHashRoute'
 
 export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack: () => void }) {
@@ -114,6 +115,7 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
           </div>
           <Icon name="right" />
         </button>
+        <TeamStatus projectId={projectId} />
         <FolderStatus projectId={projectId} />
         <BackupButton projectId={projectId} />
       </div>

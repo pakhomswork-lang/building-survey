@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { pushProfile, retryPendingProfile, signOut, syncProfileAfterLogin, useAccount } from './account'
 import { AccountForm } from './AccountForm'
-import { getUserProfile, type UserProfile } from './db'
+import { getUserProfile, setAccountId, type UserProfile } from './db'
 import { Icon } from './Icon'
 import { ProfileForm } from './ProfileForm'
 import { ProjectList } from './ProjectList'
@@ -9,6 +9,7 @@ import { ProjectPhotos } from './ProjectPhotos'
 import { ProjectScreen } from './ProjectScreen'
 import { SheetViewer } from './SheetViewer'
 import { supabase } from './supabase'
+import { startAutoPush } from './sync'
 import { navigate, useHashRoute } from './useHashRoute'
 import { APP_VERSION } from './version'
 
@@ -38,12 +39,28 @@ function App() {
   const [notice, setNotice] = useState('')
   const account = useAccount()
   const accountId = account?.userId
+  const accountKnown = account !== undefined
   const route = useHashRoute()
 
   useEffect(() => {
     requestPersistentStorage().then(setStorage)
     getUserProfile().then(setProfile)
   }, [])
+
+  // запоминаем вход в базе телефона: новые записи подписываются аккаунтом;
+  // пока вошли — общие объекты сами уходят на сервер (Р-32)
+  useEffect(() => {
+    if (!accountKnown) return
+    let stop: (() => void) | undefined
+    let cancelled = false
+    setAccountId(accountId ?? null).then(() => {
+      if (accountId && !cancelled) stop = startAutoPush()
+    })
+    return () => {
+      cancelled = true
+      stop?.()
+    }
+  }, [accountKnown, accountId])
 
   // имя и код, которые не ушли на сервер без сети, досылаем при запуске и когда сеть появилась
   useEffect(() => {
