@@ -6,6 +6,7 @@ import { Icon } from './Icon'
 import { countByType, TYPE_KEYS } from './format'
 import { PhotoThumb } from './PhotoThumb'
 import { PhotoView } from './PhotoView'
+import { usePeople } from './people'
 import { getFolder, hasFolderPermission } from './photoFolder'
 import { savePhoto } from './photos'
 import { typeColor } from './typeColor'
@@ -33,6 +34,9 @@ export function PointPanel({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [typeMenuOpen, setTypeMenuOpen] = useState(false)
+  const people = usePeople()
+  // точку другого участника меняет и удаляет только он; фото в неё снимать можно (Р-38)
+  const mine = !people || people.isMine(point.authorId)
 
   async function onFiles(files: FileList | null) {
     if (!files?.length) return
@@ -86,22 +90,27 @@ export function PointPanel({
         <div className="point-head">
           <h2>Точка {number}</h2>
           <small>{photos?.length ?? 0} фото</small>
-          <button
-            className="icon-btn"
-            aria-label="Комментарий и удаление точки"
-            style={{ marginRight: -8 }}
-            onClick={() => {
-              setComment(point.comment)
-              setMenuOpen(true)
-            }}
-          >
-            <Icon name="more" />
-          </button>
+          {mine && (
+            <button
+              className="icon-btn"
+              aria-label="Комментарий и удаление точки"
+              style={{ marginRight: -8 }}
+              onClick={() => {
+                setComment(point.comment)
+                setMenuOpen(true)
+              }}
+            >
+              <Icon name="more" />
+            </button>
+          )}
           <button className="icon-btn" aria-label="Закрыть точку" onClick={onClose} style={{ marginRight: -8 }}>
             <Icon name="close" />
           </button>
         </div>
-        <div className="point-meta">поставлена {new Date(point.createdAt).toLocaleString('ru-RU')}</div>
+        <div className="point-meta">
+          поставлена {new Date(point.createdAt).toLocaleString('ru-RU')}
+          {!mine && people && <>, автор: {people.nameOf(point.authorId)}</>}
+        </div>
         {point.comment && <p style={{ margin: '8px 0 0', fontSize: 15, color: 'var(--text-2)' }}>{point.comment}</p>}
 
         {error && <p style={{ color: 'var(--danger)', fontSize: 14 }}>{error}</p>}

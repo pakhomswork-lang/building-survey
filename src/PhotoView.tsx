@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState } from 'react'
 import { db, deletePhoto, PHOTO_TYPES, setPhotoType, type Photo, type PhotoType } from './db'
 import { Icon } from './Icon'
+import { usePeople } from './people'
 import { typeColor } from './typeColor'
 import { usePanZoom } from './usePanZoom'
 import { useObjectUrl } from './useObjectUrl'
@@ -81,6 +82,7 @@ export function PhotoView({
 }) {
   const index = photos.findIndex(p => p.id === photoId)
   const photo = index >= 0 ? photos[index] : null
+  const people = usePeople()
 
   // фото пропало из списка (удалили или сменили тип при отборе по типу) — закрываем просмотр
   useEffect(() => {
@@ -88,6 +90,8 @@ export function PhotoView({
   }, [photo, onClose])
   if (!photo) return null
 
+  // чужое фото: тип и удаление меняет только тот, кто снимал (Р-38)
+  const mine = !people || people.isMine(photo.authorId)
   const prev = index > 0 ? photos[index - 1] : null
   const next = index < photos.length - 1 ? photos[index + 1] : null
 
@@ -110,9 +114,13 @@ export function PhotoView({
         <span style={{ flex: 1, textAlign: 'center', fontSize: 14, opacity: 0.8 }}>
           {index + 1} из {photos.length}
         </span>
-        <button className="icon-btn" aria-label="Удалить фото" onClick={remove}>
-          <Icon name="trash" />
-        </button>
+        {mine ? (
+          <button className="icon-btn" aria-label="Удалить фото" onClick={remove}>
+            <Icon name="trash" />
+          </button>
+        ) : (
+          <span style={{ width: 44 }} />
+        )}
       </div>
 
       {prev && (
@@ -130,8 +138,17 @@ export function PhotoView({
         {caption && <b style={{ fontWeight: 500, fontSize: 16 }}>{caption(photo)}</b>}
         <div style={{ fontSize: 13, opacity: 0.65, marginTop: 2, wordBreak: 'break-all' }}>
           {new Date(photo.takenAt).toLocaleString('ru-RU')}. {photo.fileName}
+          {!mine && people && <>. Снимал: {people.nameOf(photo.authorId)}</>}
         </div>
-        {/* тип можно исправить прямо здесь */}
+        {/* тип можно исправить прямо здесь; у чужого фото только видно тип */}
+        {!mine ? (
+          <div style={{ display: 'flex', marginTop: 16 }}>
+            <span className="chip on-dark on" style={{ cursor: 'default' }}>
+              <i className="type-dot" style={{ background: typeColor(photo.type) }} />
+              {PHOTO_TYPES[photo.type]}
+            </span>
+          </div>
+        ) : (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 16 }}>
           {(Object.entries(PHOTO_TYPES) as [PhotoType, string][]).map(([type, label]) => (
             <button
@@ -144,6 +161,7 @@ export function PhotoView({
             </button>
           ))}
         </div>
+        )}
       </div>
     </div>
   )

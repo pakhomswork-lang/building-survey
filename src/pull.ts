@@ -11,6 +11,7 @@
 import type { EntityTable } from 'dexie'
 import { db, type Photo, type PhotoType, type Point, type Project, type Sheet, type SyncFields } from './db'
 import { sheetImageFromBlob } from './sheetImport'
+import { refreshPeople } from './people'
 import { supabase } from './supabase'
 
 const OVERLAP_MS = 2 * 60_000
@@ -164,6 +165,7 @@ async function pullOnce(userId: string) {
   await saveCursor('photos', photos.cursor)
 
   await downloadSheetImages()
+  await refreshPeople()
 }
 
 let running = false

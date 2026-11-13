@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPoint, db, PHOTO_TYPES, type Photo, type PhotoType } from './db'
 import { plural, TYPE_KEYS } from './format'
 import { Icon } from './Icon'
+import { usePeople } from './people'
 import { PointPanel } from './PointPanel'
 import { typeColor } from './typeColor'
 import { usePanZoom, type Tap } from './usePanZoom'
@@ -61,6 +62,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
   const [photoType, setPhotoType] = useState<PhotoType>('general')
   const [filter, setFilter] = useState<'all' | PhotoType>('all')
   const [sheetMenuOpen, setSheetMenuOpen] = useState(false)
+  const people = usePeople()
 
   // размер области под лист: от него зависит, каким лист будет «вписан в экран»
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -203,11 +205,14 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
               }}
             >
               <img src={url} alt="" draggable={false} style={{ width: '100%', height: '100%', display: 'block', pointerEvents: 'none', userSelect: 'none' }} />
-              {shownPoints.map(({ p, n }) => (
+              {shownPoints.map(({ p, n }) => {
+                // чужая точка: метка бледнее, под ней код автора (Р-38)
+                const other = !!people && !people.isMine(p.authorId)
+                return (
                 <div
                   key={p.id}
                   data-point-id={p.id}
-                  className={'marker' + (p.id === selectedId ? ' on' : '')}
+                  className={'marker' + (p.id === selectedId ? ' on' : '') + (other ? ' other' : '')}
                   style={{
                     left: `${p.x}%`,
                     top: `${p.y}%`,
@@ -221,8 +226,14 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                   }}
                 >
                   <span style={{ fontSize: Math.round(size * 0.5) }}>{n}</span>
+                  {other && (
+                    <em className="marker-code" style={{ fontSize: Math.max(9, Math.round(size * 0.38)) }}>
+                      {people.codeOf(p.authorId) || '?'}
+                    </em>
+                  )}
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

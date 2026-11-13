@@ -265,6 +265,28 @@ button:focus-visible {
   line-height: 1;
 }
 
+/* точка другого участника (Р-38) */
+.marker.other:not(.on) {
+  opacity: 0.75;
+}
+
+.marker-code {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 1px;
+  padding: 0 3px;
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .marker.on span {
   background: var(--text);
   color: #fff;
