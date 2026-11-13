@@ -5,6 +5,8 @@ import { db, deleteProject, renameProject } from './db'
 import { FolderStatus } from './FolderStatus'
 import { plural } from './format'
 import { Icon } from './Icon'
+import { isComputer } from './pcFolder'
+import { PcFolderStatus } from './PcFolderStatus'
 import { SheetList } from './SheetList'
 import { TeamStatus } from './TeamStatus'
 import { navigate } from './useHashRoute'
@@ -115,7 +117,8 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
           <Icon name="right" />
         </button>
         <TeamStatus projectId={projectId} />
-        <FolderStatus projectId={projectId} />
+        {/* на компьютере фото не снимают, а ищут в папке с фото объекта (Р-39) */}
+        {isComputer ? <PcFolderStatus projectId={projectId} /> : <FolderStatus projectId={projectId} />}
       </div>
     </section>
   )

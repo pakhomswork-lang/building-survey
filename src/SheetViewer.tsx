@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPoint, db, PHOTO_TYPES, type Photo, type PhotoType } from './db'
 import { plural, TYPE_KEYS } from './format'
 import { Icon } from './Icon'
+import { useProjectFolder } from './pcFolder'
 import { usePeople } from './people'
 import { PointPanel } from './PointPanel'
 import { typeColor } from './typeColor'
@@ -41,6 +42,8 @@ function ringBackground(photos: Photo[]): string {
 export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () => void }) {
   const sheet = useLiveQuery(async () => (await db.sheets.get(sheetId)) ?? null, [sheetId])
   const project = useLiveQuery(async () => (sheet ? await db.projects.get(sheet.projectId) : undefined), [sheet?.projectId])
+  // на компьютере фото точек берём из папки с фото объекта (Р-39)
+  useProjectFolder(sheet?.projectId ?? '')
   const sheets = useLiveQuery(async () => {
     if (!sheet) return []
     const all = await db.sheets.where('projectId').equals(sheet.projectId).sortBy('order')

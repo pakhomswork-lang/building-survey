@@ -5,8 +5,8 @@
 import { db } from './db'
 
 // Этих функций нет в стандартных типах TypeScript, но Chrome их поддерживает
-type PermissionMode = { mode: 'readwrite' }
-interface DirectoryWithPermission extends FileSystemDirectoryHandle {
+export type PermissionMode = { mode: 'read' | 'readwrite' }
+export interface DirectoryWithPermission extends FileSystemDirectoryHandle {
   queryPermission(opts: PermissionMode): Promise<PermissionState>
   requestPermission(opts: PermissionMode): Promise<PermissionState>
 }

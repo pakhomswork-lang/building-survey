@@ -6,7 +6,7 @@ import { trySaveToFolder } from './photoFolder'
 const THUMB_SIDE = 320
 
 /** Превью фото. Учитываем поворот из данных камеры, иначе фото «лежат на боку». */
-async function makeThumb(file: Blob): Promise<Blob> {
+export async function makeThumb(file: Blob): Promise<Blob> {
   const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
   const k = Math.min(1, THUMB_SIDE / Math.max(bitmap.width, bitmap.height))
   const canvas = document.createElement('canvas')

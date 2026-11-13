@@ -89,6 +89,12 @@ export interface PhotoFile {
   savedToFolder?: boolean
 }
 
+/** Миниатюра фото из папки на компьютере (17а): делается один раз, потом открывается сразу. */
+export interface FolderThumb {
+  fileName: string
+  thumb: Blob
+}
+
 /** Настройки устройства: кто пользователь и т. п. */
 export interface Setting {
   key: string
@@ -110,6 +116,7 @@ export const db = new Dexie('building-survey') as Dexie & {
   photoFiles: EntityTable<PhotoFile, 'fileName'>
   settings: EntityTable<Setting, 'key'>
   folders: EntityTable<FolderRecord, 'key'>
+  folderThumbs: EntityTable<FolderThumb, 'fileName'>
 }
 
 // Здесь перечислены только поля, по которым ищем. Остальные поля хранятся и так.
@@ -126,6 +133,11 @@ db.version(1).stores({
 // v2: доступ к папке телефона, куда сохраняются фото (Р-21)
 db.version(2).stores({
   folders: 'key',
+})
+
+// v3: миниатюры фото из папки на компьютере (Р-39)
+db.version(3).stores({
+  folderThumbs: 'fileName',
 })
 
 /** id пользователя этого устройства. Создаётся один раз при первом запуске. */

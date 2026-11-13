@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState } from 'react'
 import { db, deletePhoto, PHOTO_TYPES, setPhotoType, type Photo, type PhotoType } from './db'
 import { Icon } from './Icon'
+import { useFolderFile } from './pcFolder'
 import { usePeople } from './people'
 import { typeColor } from './typeColor'
 import { usePanZoom } from './usePanZoom'
@@ -11,7 +12,13 @@ import { useObjectUrl } from './useObjectUrl'
 function ZoomImage({ fileName }: { fileName: string }) {
   // null — файла нет в этом телефоне (фото снято на другом устройстве, Р-13)
   const blob = useLiveQuery(async () => (await db.photoFiles.get(fileName))?.blob ?? null, [fileName])
-  const url = useObjectUrl(blob ?? undefined)
+  // на компьютере фото берём из папки с фото объекта (Р-39)
+  const inFolder = useFolderFile(fileName)
+  const [folderBlob, setFolderBlob] = useState<Blob | null>(null)
+  useEffect(() => {
+    if (blob === null && inFolder) inFolder.handle.getFile().then(setFolderBlob, () => {})
+  }, [blob, inFolder])
+  const url = useObjectUrl(blob ?? folderBlob ?? undefined)
   const viewportRef = useRef<HTMLDivElement>(null)
   const [vp, setVp] = useState<{ w: number; h: number } | null>(null)
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null)
@@ -54,7 +61,7 @@ function ZoomImage({ fileName }: { fileName: string }) {
           }}
         />
       )}
-      {blob === null && (
+      {blob === null && !inFolder && (
         <p style={{ position: 'absolute', top: '45%', left: 24, right: 24, textAlign: 'center', color: '#fff', opacity: 0.8 }}>
           Фото снято на другом устройстве и хранится там.
           <br />
@@ -83,6 +90,7 @@ export function PhotoView({
   const index = photos.findIndex(p => p.id === photoId)
   const photo = index >= 0 ? photos[index] : null
   const people = usePeople()
+  const folderPath = useFolderFile(photo?.fileName ?? '')?.path
 
   // фото пропало из списка (удалили или сменили тип при отборе по типу) — закрываем просмотр
   useEffect(() => {
@@ -137,7 +145,7 @@ export function PhotoView({
       <div className="dark-bottom">
         {caption && <b style={{ fontWeight: 500, fontSize: 16 }}>{caption(photo)}</b>}
         <div style={{ fontSize: 13, opacity: 0.65, marginTop: 2, wordBreak: 'break-all' }}>
-          {new Date(photo.takenAt).toLocaleString('ru-RU')}. {photo.fileName}
+          {new Date(photo.takenAt).toLocaleString('ru-RU')}. {folderPath ?? photo.fileName}
           {!mine && people && <>. Снимал: {people.nameOf(photo.authorId)}</>}
         </div>
         {/* тип можно исправить прямо здесь; у чужого фото только видно тип */}

@@ -3,6 +3,7 @@ import { useState, type CSSProperties } from 'react'
 import { db, PHOTO_TYPES, type Photo, type PhotoType } from './db'
 import { countByType, TYPE_KEYS } from './format'
 import { Icon } from './Icon'
+import { useProjectFolder } from './pcFolder'
 import { PhotoThumb } from './PhotoThumb'
 import { PhotoView } from './PhotoView'
 import { typeColor } from './typeColor'
@@ -25,6 +26,7 @@ export function ProjectPhotos({ projectId, onBack }: { projectId: string; onBack
       photos: photos.filter(p => !p.deleted),
     }
   }, [projectId])
+  useProjectFolder(projectId)
   const [sheetId, setSheetId] = useState<string>('all')
   const [type, setType] = useState<TypeFilter>('all')
   const [openId, setOpenId] = useState<string | null>(null)
