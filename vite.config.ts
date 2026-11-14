@@ -1,11 +1,30 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+
+/** У версии для компьютера свой файл установки: ставится отдельной программой (Р-40). */
+const pcManifest: Plugin = {
+  name: 'pc-manifest',
+  enforce: 'post',
+  transformIndexHtml: {
+    order: 'post',
+    handler(html, ctx) {
+      if (!ctx.path.includes('/pc/')) return html
+      return html.replace(/<link rel="manifest" href="[^"]*">/, '<link rel="manifest" href="/building-survey/pc/manifest.webmanifest">')
+    },
+  },
+}
 
 // https://vite.dev/config/
 export default defineConfig({
   // на GitHub Pages сайт лежит в подпапке /building-survey/, локально адрес такой же
   base: '/building-survey/',
+  // две страницы: телефонная версия и версия для компьютера (Р-40)
+  build: {
+    rollupOptions: {
+      input: { main: 'index.html', pc: 'pc/index.html' },
+    },
+  },
   define: {
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
   },
@@ -39,5 +58,6 @@ export default defineConfig({
         navigateFallbackDenylist: [/\/spike/, /\/check-/],
       },
     }),
+    pcManifest,
   ],
 })

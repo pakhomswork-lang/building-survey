@@ -5,6 +5,7 @@ import { getUserProfile, setAccountId, type UserProfile } from './db'
 import { Icon } from './Icon'
 import { JoinScreen } from './JoinScreen'
 import { ProfileForm } from './ProfileForm'
+import { isComputer } from './pcFolder'
 import { ProjectList } from './ProjectList'
 import { ProjectPhotos } from './ProjectPhotos'
 import { ProjectScreen } from './ProjectScreen'
@@ -30,6 +31,22 @@ async function requestPersistentStorage(): Promise<StorageStatus> {
   if (!navigator.storage?.persist) return 'unsupported'
   if (await navigator.storage.persisted()) return 'persistent'
   return (await navigator.storage.persist()) ? 'persistent' : 'not-persistent'
+}
+
+/** На компьютере удобнее отдельная версия под монитор и мышь (Р-40). */
+function PcLink() {
+  return (
+    <div className="list" style={{ marginTop: 24 }}>
+      <a className="item" href="pc/" style={{ textDecoration: 'none', color: 'inherit' }}>
+        <Icon name="images" />
+        <div className="grow">
+          <b>Версия для компьютера</b>
+          <small>Большой лист, управление мышью, фото из папки</small>
+        </div>
+        <Icon name="right" />
+      </a>
+    </div>
+  )
 }
 
 function App() {
@@ -91,7 +108,18 @@ function App() {
   }
 
   if (profile === undefined) return null
-  if (profile === null) return <ProfileForm onSaved={setProfile} />
+  if (profile === null) {
+    return (
+      <>
+        <ProfileForm onSaved={setProfile} />
+        {isComputer && (
+          <div className="page">
+            <PcLink />
+          </div>
+        )}
+      </>
+    )
+  }
   if (editingProfile) {
     return (
       <ProfileForm
@@ -131,6 +159,7 @@ function App() {
           </div>
           <h1 className="page-title">Объекты</h1>
           <ProjectList onOpen={projectId => navigate({ screen: 'project', projectId })} />
+          {isComputer && <PcLink />}
           {account !== undefined && (
             <div className="list" style={{ marginTop: 24 }}>
               {account ? (
