@@ -4,6 +4,8 @@ import { db, type Photo } from '../db'
 import { usePeople } from '../people'
 import { markerSize, ringBackground } from '../markers'
 import { useObjectUrl } from '../useObjectUrl'
+import type { PDFPageProxy, RenderTask } from 'pdfjs-dist'
+import { usePdfPage } from './sheetPdf'
 
 // Лист для мыши (Р-40): колесо — приближение к курсору, любая кнопка — тащить лист,
 // щелчок по метке — выбрать точку, двойной щелчок — приблизить. Меню браузера не появляется.
@@ -36,6 +38,8 @@ export function PcSheet({
   const photos = useLiveQuery(async () => (await db.photos.where('sheetId').equals(sheetId).toArray()).filter(p => !p.deleted), [sheetId])
   const url = useObjectUrl(image?.blob)
   const people = usePeople()
+  // исходный PDF листа, если указан на этом компьютере (Р-42)
+  const pdf = usePdfPage(sheetId)
 
   const ref = useRef<HTMLDivElement>(null)
   const [vp, setVp] = useState<{ w: number; h: number } | null>(null)
@@ -52,7 +56,8 @@ export function PcSheet({
   // «лист целиком» с небольшим полем
   const fit = vp && image ? Math.min((vp.w - 32) / image.width, (vp.h - 32) / image.height) : null
   // приближать до 2 пикселей экрана на пиксель картинки, но не меньше чем в 4 раза
-  const maxScale = fit ? Math.max(4, 2 / fit) : 4
+  // с PDF лист чёткий при любом приближении, поэтому можно приближать сильнее
+  const maxScale = fit ? (pdf ? Math.max(16, 8 / fit) : Math.max(4, 2 / fit)) : 4
 
   const [view, setView] = useState<View>({ x: 0, y: 0, s: 1 })
   const viewRef = useRef(view)
@@ -171,6 +176,7 @@ export function PcSheet({
       {url && fit && (
         <div style={{ position: 'absolute', left: view.x, top: view.y, width: w, height: h, background: '#fff' }}>
           <img src={url} alt="" draggable={false} style={{ width: '100%', height: '100%', display: 'block' }} />
+          {pdf && vp && <PdfLayer page={pdf} x={view.x} y={view.y} w={w} h={h} vpW={vp.w} vpH={vp.h} />}
           {shown.map(({ p, n }) => {
             const other = !!people && !people.isMine(p.authorId)
             return (
@@ -214,4 +220,57 @@ export function PcSheet({
       </div>
     </div>
   )
+}
+
+/**
+ * Видимая часть листа, нарисованная из PDF в разрешении экрана (Р-42).
+ * Перерисовывается, когда лист перестал двигаться; пока рисуется, видна прежняя картинка,
+ * растянутая вместе с листом. Под ней всегда лежит обычная картинка листа.
+ */
+function PdfLayer({ page, x, y, w, h, vpW, vpH }: { page: PDFPageProxy; x: number; y: number; w: number; h: number; vpW: number; vpH: number }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    let task: RenderTask | null = null
+    const timer = setTimeout(async () => {
+      const canvas = ref.current
+      if (!canvas) return
+      const dpr = window.devicePixelRatio || 1
+      // видимый кусок листа в координатах листа на экране
+      const x0 = Math.max(0, -x)
+      const y0 = Math.max(0, -y)
+      const x1 = Math.min(w, vpW - x)
+      const y1 = Math.min(h, vpH - y)
+      if (x1 <= x0 || y1 <= y0) return
+      const base = page.getViewport({ scale: 1 })
+      const viewport = page.getViewport({ scale: (w * dpr) / base.width })
+      const off = document.createElement('canvas')
+      off.width = Math.ceil((x1 - x0) * dpr)
+      off.height = Math.ceil((y1 - y0) * dpr)
+      const ctx = off.getContext('2d')!
+      ctx.fillStyle = '#fff'
+      ctx.fillRect(0, 0, off.width, off.height)
+      task = page.render({ canvas: off, canvasContext: ctx, viewport, transform: [1, 0, 0, 1, -x0 * dpr, -y0 * dpr] })
+      try {
+        await task.promise
+      } catch {
+        return // отменили: лист снова сдвинули
+      }
+      // новый кусок и его место ставим разом, без лишней отрисовки React
+      canvas.width = off.width
+      canvas.height = off.height
+      canvas.getContext('2d')!.drawImage(off, 0, 0)
+      Object.assign(canvas.style, {
+        display: 'block',
+        left: `${(x0 / w) * 100}%`,
+        top: `${(y0 / h) * 100}%`,
+        width: `${((x1 - x0) / w) * 100}%`,
+        height: `${((y1 - y0) / h) * 100}%`,
+      })
+    }, 150)
+    return () => {
+      clearTimeout(timer)
+      task?.cancel()
+    }
+  }, [page, x, y, w, h, vpW, vpH])
+  return <canvas ref={ref} style={{ position: 'absolute', display: 'none', pointerEvents: 'none' }} />
 }

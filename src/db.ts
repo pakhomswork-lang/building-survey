@@ -95,6 +95,16 @@ export interface FolderThumb {
   thumb: Blob
 }
 
+/** Исходный PDF листа на компьютере (17б-4, Р-42): лист рисуется из него чётко. Только на этом устройстве. */
+export interface SheetPdf {
+  sheetId: string
+  blob: Blob
+  /** Имя файла, чтобы показать, какой PDF выбран. */
+  name: string
+  /** Номер страницы PDF, с 1. */
+  page: number
+}
+
 /** Настройки устройства: кто пользователь и т. п. */
 export interface Setting {
   key: string
@@ -117,6 +127,7 @@ export const db = new Dexie('building-survey') as Dexie & {
   settings: EntityTable<Setting, 'key'>
   folders: EntityTable<FolderRecord, 'key'>
   folderThumbs: EntityTable<FolderThumb, 'fileName'>
+  sheetPdfs: EntityTable<SheetPdf, 'sheetId'>
 }
 
 // Здесь перечислены только поля, по которым ищем. Остальные поля хранятся и так.
@@ -138,6 +149,11 @@ db.version(2).stores({
 // v3: миниатюры фото из папки на компьютере (Р-39)
 db.version(3).stores({
   folderThumbs: 'fileName',
+})
+
+// v4: исходные PDF листов на компьютере (Р-42)
+db.version(4).stores({
+  sheetPdfs: 'sheetId',
 })
 
 /** id пользователя этого устройства. Создаётся один раз при первом запуске. */

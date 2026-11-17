@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useCallback, useMemo, useState, type CSSProperties } from 'react'
+import { useCallback, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { db, PHOTO_TYPES, type Photo } from '../db'
 import { countByType, plural, TYPE_KEYS } from '../format'
 import { PcFolderStatus } from '../PcFolderStatus'
@@ -14,6 +14,7 @@ import { matches, type FilterDef, type Selection } from './filters'
 import { PcFilterBar } from './PcFilterBar'
 import { PcPhotoGrid, PcPhotoPreview, type GridSize } from './PcPhotoGrid'
 import { PcSheet } from './PcSheet'
+import { attachPdf, removePdf } from './sheetPdf'
 
 type Mode = 'plan' | 'grid'
 
@@ -176,7 +177,12 @@ export function PcProject({ projectId }: { projectId: string }) {
 
       <section className="pc-main">
         <div className="pc-filters">
-          {mode === 'plan' && sheet && <b className="pc-sheet-name">{sheet.name}</b>}
+          {mode === 'plan' && sheet && (
+            <div className="pc-sheet-name">
+              <b>{sheet.name}</b>
+              <SheetPdfButton key={sheet.id} sheetId={sheet.id} />
+            </div>
+          )}
           {mode === 'grid' && (
             <b className="pc-sheet-name">
               {gridPhotos.length === data.photos.length ? `Все фото: ${data.photos.length}` : `Отобрано ${gridPhotos.length} из ${data.photos.length}`}
@@ -237,6 +243,48 @@ export function PcProject({ projectId }: { projectId: string }) {
           caption={caption}
         />
       )}
+    </div>
+  )
+}
+
+/** Указать исходный PDF листа: лист станет чётким при любом приближении (только на этом компьютере, Р-42). */
+function SheetPdfButton({ sheetId }: { sheetId: string }) {
+  const rec = useLiveQuery(async () => {
+    const r = await db.sheetPdfs.get(sheetId)
+    return r ? { name: r.name, page: r.page } : null
+  }, [sheetId])
+  const input = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  if (rec === undefined) return null
+
+  async function pick(file: File | undefined) {
+    if (input.current) input.current.value = ''
+    if (!file) return
+    setBusy(true)
+    setError((await attachPdf(sheetId, file)) ?? '')
+    setBusy(false)
+  }
+
+  return (
+    <div className="pc-pdf">
+      <input ref={input} type="file" accept="application/pdf,.pdf" hidden onChange={e => pick(e.target.files?.[0])} />
+      {rec ? (
+        <>
+          <span className="pc-muted" title={rec.name}>
+            Чётко из PDF: {rec.name}
+            {rec.page > 1 ? `, стр. ${rec.page}` : ''}
+          </span>
+          <button className="btn-link" onClick={() => removePdf(sheetId)}>
+            Убрать
+          </button>
+        </>
+      ) : (
+        <button className="pc-btn" disabled={busy} onClick={() => input.current?.click()} title="Указать исходный PDF чертежа: лист станет чётким при любом приближении. PDF хранится только на этом компьютере.">
+          {busy ? 'Открываем PDF…' : 'Чёткий лист из PDF'}
+        </button>
+      )}
+      {error && <span className="pc-error">{error}</span>}
     </div>
   )
 }
