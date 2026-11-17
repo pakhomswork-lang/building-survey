@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPoint, db, PHOTO_TYPES, type PhotoType } from './db'
 import { plural, TYPE_KEYS } from './format'
 import { Icon } from './Icon'
@@ -197,7 +197,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                     marginTop: -size / 2,
                     // метка не растёт вместе с листом, её размер считает markerSize
                     transform: `scale(${1 / t.s})`,
-                    background: ringBackground(photosOf(p.id)),
+                    ...({ '--ring': ringBackground(photosOf(p.id)) } as CSSProperties),
                   }}
                 >
                   <span style={{ fontSize: Math.round(size * 0.5) }}>{n}</span>

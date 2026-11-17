@@ -15,20 +15,27 @@ export function markerSize(scale: number): number {
   return Math.min(MARKER_MAX, MARKER_MIN * Math.sqrt(scale / MARKER_GROW_FROM))
 }
 
-/** Кольцо метки: доли цветов показывают, сколько фото какого типа в точке. */
+/**
+ * Кольцо метки: доли цветов показывают, сколько фото какого типа в точке.
+ * Возвращает слой-картинку для CSS-переменной --ring; белый кружок с номером
+ * рисуется поверх в том же элементе (см. .marker в index.css), поэтому не съезжает
+ * на экранах с увеличением 125–150 %.
+ */
 export function ringBackground(photos: Photo[]): string {
-  if (!photos.length) return '#c4c9d1'
+  const types = TYPE_KEYS.filter(t => photos.some(p => p.type === t))
+  // один цвет — сплошное кольцо без стыка (у кругового градиента на стыке бывает светлая черта)
+  if (types.length <= 1) {
+    const c = types.length ? typeColor(types[0]) : '#c4c9d1'
+    return `linear-gradient(${c}, ${c})`
+  }
   let angle = 0
   const stops: string[] = []
-  for (const type of TYPE_KEYS) {
+  for (const type of types) {
     const n = photos.filter(p => p.type === type).length
-    if (!n) continue
     const from = angle
     angle += (n / photos.length) * 360
-    // маленький зазор между долями, если типов несколько
-    const gap = n === photos.length ? 0 : 3
-    stops.push(`${typeColor(type)} ${from}deg ${angle - gap}deg`, `transparent ${angle - gap}deg ${angle}deg`)
+    // маленький зазор между долями
+    stops.push(`${typeColor(type)} ${from}deg ${angle - 3}deg`, `transparent ${angle - 3}deg ${angle}deg`)
   }
   return `conic-gradient(${stops.join(',')})`
 }
-

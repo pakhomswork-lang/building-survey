@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react'
 import { db, type Photo } from '../db'
 import { usePeople } from '../people'
 import { markerSize, ringBackground } from '../markers'
@@ -186,7 +186,7 @@ export function PcSheet({
                   height: size,
                   marginLeft: -size / 2,
                   marginTop: -size / 2,
-                  background: ringBackground(photosOf(p.id)),
+                  ...({ '--ring': ringBackground(photosOf(p.id)) } as CSSProperties),
                   cursor: 'pointer',
                 }}
               >
