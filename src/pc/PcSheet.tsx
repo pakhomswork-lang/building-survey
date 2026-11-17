@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
-import { db, type Photo, type PhotoType } from '../db'
+import { db, type Photo } from '../db'
 import { usePeople } from '../people'
 import { markerSize, ringBackground } from '../markers'
 import { useObjectUrl } from '../useObjectUrl'
@@ -21,12 +21,13 @@ const CLICK_MOVE = 4
 
 export function PcSheet({
   sheetId,
-  filter,
+  match,
   selectedId,
   onSelect,
 }: {
   sheetId: string
-  filter: 'all' | PhotoType
+  /** Отбор фото: на листе остаются точки, где есть подходящие фото. null — все точки. */
+  match: ((photo: Photo) => boolean) | null
   selectedId: string | null
   onSelect: (pointId: string | null) => void
 }) {
@@ -150,7 +151,7 @@ export function PcSheet({
   const photosOf = (pointId: string): Photo[] => photos?.filter(p => p.pointId === pointId) ?? []
   const shown = (points ?? [])
     .map((p, i) => ({ p, n: i + 1 }))
-    .filter(({ p }) => filter === 'all' || p.id === selectedId || photosOf(p.id).some(ph => ph.type === filter))
+    .filter(({ p }) => !match || p.id === selectedId || photosOf(p.id).some(match))
   const size = markerSize(view.s)
   const w = image && fit ? image.width * fit * view.s : 0
   const h = image && fit ? image.height * fit * view.s : 0

@@ -92,6 +92,20 @@ export function PhotoView({
   const people = usePeople()
   const folderPath = useFolderFile(photo?.fileName ?? '')?.path
 
+  // на компьютере: стрелки — соседнее фото, Esc — закрыть
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const target = e.key === 'ArrowLeft' ? index - 1 : e.key === 'ArrowRight' ? index + 1 : -1
+      if (e.key === 'Escape') onClose()
+      else if (target >= 0 && target < photos.length) onChange(photos[target].id)
+      else return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [index, photos, onChange, onClose])
+
   // фото пропало из списка (удалили или сменили тип при отборе по типу) — закрываем просмотр
   useEffect(() => {
     if (!photo) onClose()
