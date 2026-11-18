@@ -84,9 +84,9 @@ export function PcPhotoGrid({
             onDoubleClick={() => onOpen(p.id)}
           >
             <LazyThumb fileName={p.fileName} />
-            <span className="pc-photo-cap">
+            <span className="pc-photo-cap" title={caption(p)}>
               <i className="type-dot" style={{ background: typeColor(p.type) }} />
-              {caption(p)}
+              <span className="pc-photo-text">{caption(p)}</span>
               <em>{people?.codeOf(p.authorId) || p.fileName.split('_')[0]}</em>
             </span>
           </button>

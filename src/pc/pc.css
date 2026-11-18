@@ -430,8 +430,13 @@
   position: relative;
   flex: 1;
   min-height: 0;
-  overflow: auto;
-  padding: 12px 16px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* место под полосу прокрутки отведено заранее: она не ложится на фото */
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(20, 23, 28, 0.25) transparent;
+  padding: 12px 8px 12px 16px;
 }
 
 .pc-photo-grid {
@@ -441,6 +446,8 @@
 
 .pc-photo {
   position: relative;
+  /* длинная подпись не раздвигает колонку сетки */
+  min-width: 0;
   display: flex;
   flex-direction: column;
   padding: 0;
@@ -470,7 +477,18 @@
   overflow: hidden;
 }
 
+.pc-photo-cap .type-dot {
+  flex: none;
+}
+
+.pc-photo-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .pc-photo-cap em {
+  flex: none;
   margin-left: auto;
   font-style: normal;
   color: var(--text-muted);
