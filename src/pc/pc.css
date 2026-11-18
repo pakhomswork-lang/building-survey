@@ -551,6 +551,12 @@
   color: var(--danger);
 }
 
+.pc-export {
+  margin-top: 6px;
+  height: 28px;
+  font-size: 13px;
+}
+
 /* небольшой монитор или ноутбук: колонки по краям уже, лист больше */
 @media (max-width: 1280px) {
   .pc-project {

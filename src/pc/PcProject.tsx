@@ -14,6 +14,7 @@ import { matches, type FilterDef, type Selection } from './filters'
 import { PcFilterBar } from './PcFilterBar'
 import { PcPhotoGrid, PcPhotoPreview, type GridSize } from './PcPhotoGrid'
 import { PcSheet } from './PcSheet'
+import { buildPhotoCsv, csvFileName, saveTextFile } from './exportPhotos'
 import { attachPdf, removePdf } from './sheetPdf'
 
 type Mode = 'plan' | 'grid'
@@ -184,9 +185,19 @@ export function PcProject({ projectId }: { projectId: string }) {
             </div>
           )}
           {mode === 'grid' && (
-            <b className="pc-sheet-name">
-              {gridPhotos.length === data.photos.length ? `Все фото: ${data.photos.length}` : `Отобрано ${gridPhotos.length} из ${data.photos.length}`}
-            </b>
+            <div className="pc-sheet-name">
+              <b>
+                {gridPhotos.length === data.photos.length ? `Все фото: ${data.photos.length}` : `Отобрано ${gridPhotos.length} из ${data.photos.length}`}
+              </b>
+              <button
+                className="pc-btn pc-export"
+                disabled={!gridPhotos.length}
+                title="Таблица для Excel и ИИ: файл, где лежит, лист, точка, тип, кто и когда снимал, комментарий"
+                onClick={async () => saveTextFile(csvFileName(data.project!.name), await buildPhotoCsv(projectId, gridPhotos))}
+              >
+                Выгрузить описание
+              </button>
+            </div>
           )}
           <PcFilterBar photos={filterPhotos} defs={shownDefs} selection={selection} onChange={setSelection} />
         </div>
