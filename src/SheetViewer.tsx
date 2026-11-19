@@ -8,6 +8,7 @@ import { usePeople } from './people'
 import { PointPanel } from './PointPanel'
 import { RoomPanel } from './RoomPanel'
 import { canEditRooms, contourCenter, createRoom, roomAt, roomColor, roomsOfSheet, roomTitle } from './rooms'
+import { snapPoint } from './roomSnap'
 import { markerSize, ringBackground } from './markers'
 import { typeColor } from './typeColor'
 import { usePanZoom, type Tap } from './usePanZoom'
@@ -92,13 +93,24 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
   const { t, zoomBy, handlers } = usePanZoom(viewportRef, content, maxScale, handleTap, drawing)
 
   // где на листе сейчас прицел (середина экрана), в процентах листа
-  const aim: [number, number] | null =
+  const rawAim: [number, number] | null =
     vp && content
       ? [
           Math.min(100, Math.max(0, ((vp.w / 2 - t.x) / t.s / content.w) * 100)),
           Math.min(100, Math.max(0, ((vp.h / 2 - t.y) / t.s / content.h) * 100)),
         ]
       : null
+  // выравнивания (шаг 20в): угол встанет в притянутую точку рядом с прицелом
+  const snap =
+    drawing && rawAim && content && rooms
+      ? snapPoint(rawAim, {
+          kx: (content.w * t.s) / 100,
+          ky: (content.h * t.s) / 100,
+          rooms,
+          own: drawKind === 'poly' ? draft : [],
+        })
+      : null
+  const aim = snap?.p ?? rawAim
   // прямоугольник, который сейчас рисуется: от первого угла до прицела
   const draftRect = drawKind === 'rect' && draft.length === 1 && aim ? rectContour(draft[0], aim) : null
   const tooSmall = !!draftRect && !!aim && (Math.abs(aim[0] - draft[0][0]) < 0.5 || Math.abs(aim[1] - draft[0][1]) < 0.5)
@@ -107,7 +119,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
   const screenDist = (a: [number, number], b: [number, number]) =>
     content ? Math.hypot(((a[0] - b[0]) / 100) * content.w * t.s, ((a[1] - b[1]) / 100) * content.h * t.s) : Infinity
   // по углам: прицел рядом с первым углом — следующее нажатие замкнёт контур
-  const canClose = drawKind === 'poly' && draft.length >= 3 && !!aim && screenDist(aim, draft[0]) < CLOSE_PX
+  const canClose = drawKind === 'poly' && draft.length >= 3 && !!rawAim && screenDist(rawAim, draft[0]) < CLOSE_PX
   // прицел на последнем угле — второй угол туда же не ставим
   const onLastCorner = drawKind === 'poly' && draft.length > 0 && !!aim && screenDist(aim, draft[draft.length - 1]) < 4
 
@@ -344,7 +356,28 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                       vectorEffect="non-scaling-stroke"
                     />
                   )}
+                  {/* направляющие выравнивания: от угла, с которым выровняли, до точки */}
+                  {!canClose &&
+                    snap?.guides.map(([a, b], i) => (
+                      <line
+                        key={i}
+                        x1={a[0]}
+                        y1={a[1]}
+                        x2={b[0]}
+                        y2={b[1]}
+                        stroke="#2f9e44"
+                        strokeWidth={0.8}
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    ))}
                 </svg>
+              )}
+              {/* куда встанет угол, если он притянут к соседнему углу, стене или оси */}
+              {drawing && !canClose && snap && snap.kind !== 'none' && (
+                <div
+                  className={'room-snap ' + snap.kind}
+                  style={{ left: `${snap.p[0]}%`, top: `${snap.p[1]}%`, transform: `translate(-50%, -50%) scale(${1 / t.s})` }}
+                />
               )}
               {drawKind === 'poly' &&
                 draft.map(([x, y], i) => (

@@ -1140,3 +1140,21 @@ html {
   height: 14px;
   background: #2f9e44;
 }
+
+/* точка, куда встанет угол при выравнивании (20в) */
+.room-snap {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #2f9e44;
+  background: rgba(47, 158, 68, 0.15);
+  pointer-events: none;
+}
+.room-snap.vertex,
+.room-snap.wall {
+  width: 16px;
+  height: 16px;
+  background: #2f9e44;
+  box-shadow: 0 0 0 1.5px #fff;
+}
