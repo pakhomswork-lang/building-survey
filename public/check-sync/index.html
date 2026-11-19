@@ -24,7 +24,7 @@
 </head>
 <body>
 <h1>Проверка сервера бригады</h1>
-<p class="hint">Шаги 14а и 15а. Проверяет правила базы после запуска <code>02_sync.sql</code>–<code>04_invites.sql</code>: кто что видит и меняет. Создаёт тестовый объект «ТЕСТ проверки» и в конце удаляет его.</p>
+<p class="hint">Шаги 14а, 15а и 19а. Проверяет правила базы после запуска <code>02_sync.sql</code>–<code>05_rooms.sql</code>: кто что видит и меняет. Создаёт тестовый объект «ТЕСТ проверки» и в конце удаляет его.</p>
 
 <section>
   <h2>1. Вход</h2>
@@ -130,6 +130,8 @@ $('run').onclick = async () => {
   const SQ = rec({ project_id: Q.id, name: 'Лист Q', sort_order: 0 })
   const T = rec({ project_id: P.id, sheet_id: S.id, x: 10, y: 20, comment: 'первая' })
   const F = rec({ project_id: P.id, sheet_id: S.id, point_id: T.id, type: 'defect', file_name: 'TST_20261111_120000_abcd.jpg', taken_at: now() })
+  // помещение — прямоугольник 4 угла
+  const R = rec({ project_id: P.id, sheet_id: S.id, contour: [[10, 10], [40, 10], [40, 30], [10, 30]], number: '1', name: 'Коридор' })
   const files = []
 
   // мгновенные обновления: ждём событие о своей точке
@@ -240,6 +242,40 @@ $('run').onclick = async () => {
     if (row.comment !== 'новая') throw new Error('осталась «' + row.comment + '»')
   })
 
+  // помещения (шаг 19а)
+  await step('Таблица помещений на месте', async () => { await must(sb.from('rooms').select('*').limit(1)) })
+  await step('Создатель объекта: добавить помещение', async () => {
+    const [row] = await must(sb.from('rooms').insert(R).select())
+    if (row.author_id !== me) throw new Error('автор записан неверно')
+    if (row.contour.length !== 4) throw new Error('контур ' + JSON.stringify(row.contour))
+  })
+  await step('Создатель объекта: поправить номер, название, контур', async () => {
+    const rows = await must(sb.from('rooms').update({ number: 'А1', name: 'Кухня', comment: 'не было доступа',
+      contour: [[10, 10], [50, 10], [50, 30], [30, 45], [10, 30]], updated_at: now() + 1 }).eq('id', R.id).select())
+    if (rows.length !== 1 || rows[0].number !== 'А1' || rows[0].contour.length !== 5) throw new Error(JSON.stringify(rows))
+  })
+  await step('Помещение: поздняя правка побеждает старую', async () => {
+    const t = now() + 10000
+    await must(sb.from('rooms').update({ name: 'новое', updated_at: t }).eq('id', R.id))
+    await must(sb.from('rooms').update({ name: 'старое', updated_at: t - 5000 }).eq('id', R.id))
+    const [row] = await must(sb.from('rooms').select('name').eq('id', R.id))
+    if (row.name !== 'новое') throw new Error('осталось «' + row.name + '»')
+  })
+  await step('Точка: ручной выбор помещения и «без помещения»', async () => {
+    await must(sb.from('points').update({ room_id: R.id, updated_at: now() + 11000 }).eq('id', T.id))
+    await must(sb.from('points').update({ room_id: 'none', updated_at: now() + 12000 }).eq('id', T.id))
+    const [row] = await must(sb.from('points').select('room_id').eq('id', T.id))
+    if (row.room_id !== 'none') throw new Error('room_id = ' + row.room_id)
+  })
+  await step('Нельзя: помещение от чужого имени', () =>
+    mustFail(sb.from('rooms').insert({ ...R, id: crypto.randomUUID(), author_id: stranger })))
+  await step('Нельзя: контур из двух углов', () =>
+    mustFail(sb.from('rooms').insert({ ...R, id: crypto.randomUUID(), contour: [[1, 1], [2, 2]] })))
+  await step('Нельзя: угол вне листа (x = 150)', () =>
+    mustFail(sb.from('rooms').insert({ ...R, id: crypto.randomUUID(), contour: [[1, 1], [150, 1], [1, 5]] })))
+  await step('Нельзя: контур не из чисел', () =>
+    mustFail(sb.from('rooms').insert({ ...R, id: crypto.randomUUID(), contour: [['a', 1], [2, 1], [1, 5]] })))
+
   // не участник
   await step('Второй объект с листом и картинкой', async () => {
     await must(sb.from('projects').insert(Q))
@@ -259,6 +295,11 @@ $('run').onclick = async () => {
   await step('Точку нельзя поставить на лист другого объекта', () =>
     mustFail(sb.from('points').insert(rec({ project_id: P.id, sheet_id: SQ.id, x: 1, y: 1 }))))
 
+  await step('Не участник: нельзя добавить помещение (даже создателю объекта)', () =>
+    mustFail(sb.from('rooms').insert(rec({ project_id: Q.id, sheet_id: SQ.id, contour: [[1, 1], [5, 1], [5, 5]] }))))
+  await step('Помещение нельзя положить на лист другого объекта', () =>
+    mustFail(sb.from('rooms').insert(rec({ project_id: P.id, sheet_id: SQ.id, contour: [[1, 1], [5, 1], [5, 5]] }))))
+
   await step('Не участник: нельзя получить ссылку-приглашение', () =>
     mustFail(sb.rpc('invite_token', { p_project: Q.id })))
 
@@ -275,6 +316,7 @@ $('run').onclick = async () => {
     const tryDo = async (what, promise) => { const { error } = await promise; if (error) problems.push(what + ': ' + error.message) }
     if (files.length) await tryDo('файлы', sb.storage.from('sheets').remove(files))
     await tryDo('фото', sb.from('photos').delete().eq('id', F.id))
+    await tryDo('помещения', sb.from('rooms').delete().eq('id', R.id))
     await tryDo('точки', sb.from('points').delete().eq('id', T.id))
     await tryDo('листы', sb.from('sheets').delete().in('id', [S.id, SQ.id]))
     const { data: gone, error } = await sb.from('projects').delete().in('id', [P.id, Q.id]).select('id')
