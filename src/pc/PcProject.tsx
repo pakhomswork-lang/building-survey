@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useCallback, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { db, PHOTO_TYPES, type Photo } from '../db'
+import { db, getMyIds, PHOTO_TYPES, type Photo } from '../db'
 import { countByType, plural, TYPE_KEYS } from '../format'
 import { PcFolderStatus } from '../PcFolderStatus'
 import { useProjectFolder } from '../pcFolder'
@@ -14,6 +14,8 @@ import { matches, type FilterDef, type Selection } from './filters'
 import { PcFilterBar } from './PcFilterBar'
 import { PcPhotoGrid, PcPhotoPreview, type GridSize } from './PcPhotoGrid'
 import { PcSheet } from './PcSheet'
+import { PcRoomPanel } from './PcRoomPanel'
+import { canEditRooms } from '../rooms'
 import { buildPhotoCsv, csvFileName, saveTextFile } from './exportPhotos'
 import { attachPdf, removePdf } from './sheetPdf'
 
@@ -49,6 +51,11 @@ export function PcProject({ projectId }: { projectId: string }) {
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   const [size, setSize] = useState<GridSize>('m')
+  // помещения на плане (шаг 21): режим, выбранное помещение, правка контура
+  const [roomMode, setRoomMode] = useState(false)
+  const [roomId, setRoomId] = useState<string | null>(null)
+  const [editId, setEditId] = useState<string | null>(null)
+  const myIds = useLiveQuery(() => getMyIds(), [])
 
   // номер точки на листе — по порядку постановки, как на самом листе
   const pointNumber = useMemo(() => {
@@ -114,6 +121,7 @@ export function PcProject({ projectId }: { projectId: string }) {
   const sheet = data.sheets.find(s => s.id === sheetId)
   const gridPhotos = sorted.filter(p => matches(p, defs, selection))
   const preview = gridPhotos.find(p => p.id === selectedPhoto)
+  const mayEditRooms = canEditRooms(data.project, myIds)
   const filterPhotos = mode === 'plan' ? data.photos.filter(p => p.sheetId === sheetId) : data.photos
 
   return (
@@ -145,6 +153,8 @@ export function PcProject({ projectId }: { projectId: string }) {
                   onClick={() => {
                     setChosenSheet(s.id)
                     setSelectedPoint(null)
+                    setRoomId(null)
+                    setEditId(null)
                   }}
                 >
                   <SheetThumb sheetId={s.id} />
@@ -181,6 +191,17 @@ export function PcProject({ projectId }: { projectId: string }) {
           {mode === 'plan' && sheet && (
             <div className="pc-sheet-name">
               <b>{sheet.name}</b>
+              <button
+                className={'chip' + (roomMode ? ' on' : '')}
+                title="Показать помещения листа; рисовать и править их может создатель объекта"
+                onClick={() => {
+                  setRoomMode(!roomMode)
+                  setRoomId(null)
+                  setEditId(null)
+                }}
+              >
+                Помещения
+              </button>
               <SheetPdfButton key={sheet.id} sheetId={sheet.id} />
             </div>
           )}
@@ -204,11 +225,29 @@ export function PcProject({ projectId }: { projectId: string }) {
         {mode === 'plan' ? (
           <>
             {sheetId ? (
-              <PcSheet sheetId={sheetId} match={match} selectedId={selectedPoint} onSelect={setSelectedPoint} />
+              <PcSheet
+                sheetId={sheetId}
+                match={match}
+                selectedId={selectedPoint}
+                onSelect={setSelectedPoint}
+                roomMode={roomMode}
+                roomId={roomId}
+                onRoomSelect={setRoomId}
+                canEditRooms={mayEditRooms}
+                editId={editId}
+                onEditDone={() => {
+                  setRoomId(editId)
+                  setEditId(null)
+                }}
+              />
             ) : (
               <p className="pc-muted pc-center">В объекте нет листов.</p>
             )}
-            <div className="pc-hint">Колесо — приблизить · тащить мышью — двигать лист · щелчок по точке — её фото</div>
+            <div className="pc-hint">
+              {roomMode
+                ? 'Колесо — приблизить · тащить мышью — двигать лист · щелчок по помещению — его поля'
+                : 'Колесо — приблизить · тащить мышью — двигать лист · щелчок по точке — её фото'}
+            </div>
           </>
         ) : (
           <PcPhotoGrid
@@ -223,7 +262,15 @@ export function PcProject({ projectId }: { projectId: string }) {
       </section>
 
       <aside className="pc-right">
-        {mode === 'plan' ? (
+        {mode === 'plan' && roomMode ? (
+          roomId && !editId ? (
+            <PcRoomPanel roomId={roomId} canEdit={mayEditRooms} onEditContour={() => setEditId(roomId)} onClose={() => setRoomId(null)} />
+          ) : (
+            <p className="pc-muted">
+              {editId ? 'Правка контура: тащите углы на листе.' : 'Щёлкните по помещению на листе, чтобы увидеть и исправить его поля.'}
+            </p>
+          )
+        ) : mode === 'plan' ? (
           selectedPoint && pointNumber.has(selectedPoint) ? (
             <PointPhotos
               pointId={selectedPoint}

@@ -132,3 +132,22 @@ export function roomAt(x: number, y: number, rooms: Room[]): Room | null {
 export function roomTitle(r: Room): string {
   return [r.number, r.name].filter(Boolean).join(' ') || 'Без номера'
 }
+
+/** Насколько близко (в пикселях экрана) к первому углу, чтобы замкнуть контур. */
+export const CLOSE_PX = 16
+
+/** Прямоугольник по двум противоположным углам, стороны параллельны краям листа. */
+export function rectContour(a: [number, number], b: [number, number]): [number, number][] {
+  const x0 = Math.min(a[0], b[0])
+  const x1 = Math.max(a[0], b[0])
+  const y0 = Math.min(a[1], b[1])
+  const y1 = Math.max(a[1], b[1])
+  return [
+    [x0, y0],
+    [x1, y0],
+    [x1, y1],
+    [x0, y1],
+  ]
+}
+
+export const midpoint = (a: [number, number], b: [number, number]): [number, number] => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]

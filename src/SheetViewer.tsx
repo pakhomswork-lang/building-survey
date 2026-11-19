@@ -7,7 +7,7 @@ import { useProjectFolder } from './pcFolder'
 import { usePeople } from './people'
 import { PointPanel } from './PointPanel'
 import { RoomPanel } from './RoomPanel'
-import { canEditRooms, contourCenter, createRoom, roomAt, roomColor, roomsOfSheet, roomTitle, updateRoom } from './rooms'
+import { canEditRooms, contourCenter, createRoom, roomAt, roomColor, roomsOfSheet, roomTitle, updateRoom, rectContour, midpoint, CLOSE_PX } from './rooms'
 import { snapPoint } from './roomSnap'
 import { markerSize, ringBackground } from './markers'
 import { typeColor } from './typeColor'
@@ -704,23 +704,5 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
   )
 }
 
-/** Насколько близко (в пикселях экрана) прицел к первому углу, чтобы замкнуть контур. */
-const CLOSE_PX = 16
 /** Насколько близко надо нажать к углу или «+», чтобы выбрать его при правке контура. */
 const HANDLE_PX = 24
-
-const midpoint = (a: [number, number], b: [number, number]): [number, number] => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
-
-/** Прямоугольник по двум противоположным углам, стороны параллельны краям листа. */
-function rectContour(a: [number, number], b: [number, number]): [number, number][] {
-  const x0 = Math.min(a[0], b[0])
-  const x1 = Math.max(a[0], b[0])
-  const y0 = Math.min(a[1], b[1])
-  const y1 = Math.max(a[1], b[1])
-  return [
-    [x0, y0],
-    [x1, y0],
-    [x1, y1],
-    [x0, y1],
-  ]
-}

@@ -581,3 +581,78 @@
     grid-template-columns: 230px 1fr 300px;
   }
 }
+
+/* --- помещения на компьютере (шаг 21, Р-52) --- */
+
+.pc-sheet-name > .chip {
+  margin: 6px 6px 0 0;
+  cursor: pointer;
+}
+
+.pc-sheet.drawing {
+  cursor: crosshair;
+}
+
+.pc-room-bar {
+  position: absolute;
+  z-index: 2;
+  left: 12px;
+  top: 12px;
+  right: 72px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+.pc-room-bar > * {
+  pointer-events: auto;
+}
+.pc-room-bar .pc-btn {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.pc-room-hint {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--text);
+  color: #fff;
+  font-size: 13px;
+}
+
+.pc-snap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
+}
+.pc-snap input {
+  margin: 0;
+  accent-color: #2f9e44;
+}
+
+.pc-room-panel label {
+  display: block;
+  margin: 12px 0 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.pc-room-panel textarea {
+  resize: vertical;
+}
+.pc-room-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+.pc-danger {
+  color: #c92a2a;
+}
