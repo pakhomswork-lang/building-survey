@@ -1184,3 +1184,27 @@ html {
   margin: 0;
   accent-color: #2f9e44;
 }
+
+/* правка контура (20г): углы и «+» на серединах стен */
+.room-corner.edit {
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border: 2px solid #14171c;
+  box-shadow: none;
+}
+.room-mid {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid #14171c;
+  color: #14171c;
+  font-size: 15px;
+  line-height: 16px;
+  text-align: center;
+  font-weight: 600;
+  pointer-events: none;
+  opacity: 0.85;
+}

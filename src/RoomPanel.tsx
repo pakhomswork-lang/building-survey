@@ -4,7 +4,20 @@ import { Icon } from './Icon'
 import { deleteRoom, roomTitle, updateRoom } from './rooms'
 
 /** Поля помещения: номер, название, комментарий (Р-46). Кто не может править — только смотрит. */
-export function RoomPanel({ room, color, canEdit, onClose }: { room: Room; color: string; canEdit: boolean; onClose: () => void }) {
+export function RoomPanel({
+  room,
+  color,
+  canEdit,
+  onClose,
+  onEditContour,
+}: {
+  room: Room
+  color: string
+  canEdit: boolean
+  onClose: () => void
+  /** Перейти к правке контура (20г). */
+  onEditContour: () => void
+}) {
   const [number, setNumber] = useState(room.number)
   const [name, setName] = useState(room.name)
   const [comment, setComment] = useState(room.comment)
@@ -36,6 +49,23 @@ export function RoomPanel({ room, color, canEdit, onClose }: { room: Room; color
             <label htmlFor="room-comment">Комментарий</label>
             <textarea id="room-comment" value={comment} onChange={e => setComment(e.target.value)} placeholder="Например, не было доступа" maxLength={2000} />
             <div className="list" style={{ marginTop: 16 }}>
+              <button
+                className="item"
+                onClick={async () => {
+                  // сначала сохраняем поля, потом переходим к контуру
+                  const changes = { number: number.trim(), name: name.trim(), comment: comment.trim() }
+                  if (changes.number !== room.number || changes.name !== room.name || changes.comment !== room.comment) {
+                    await updateRoom(room.id, changes)
+                  }
+                  onEditContour()
+                }}
+              >
+                <Icon name="edit" />
+                <div className="grow">
+                  <b>Изменить контур</b>
+                  <small>Передвинуть, добавить или удалить углы</small>
+                </div>
+              </button>
               <button
                 className="item danger"
                 onClick={async () => {

@@ -172,5 +172,13 @@ export function usePanZoom(
     if (vp) zoomAt(f, vp.clientWidth / 2, vp.clientHeight / 2)
   }
 
-  return { t, zoomBy, handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onWheel } }
+  /** Подвести точку листа (x, y в процентах) под середину экрана, масштаб тот же. */
+  function centerOn(px: number, py: number) {
+    const vp = viewportRef.current
+    if (!vp || !contentW || !contentH) return
+    const cur = tRef.current
+    apply({ ...cur, x: vp.clientWidth / 2 - (px / 100) * contentW * cur.s, y: vp.clientHeight / 2 - (py / 100) * contentH * cur.s })
+  }
+
+  return { t, zoomBy, centerOn, handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onWheel } }
 }

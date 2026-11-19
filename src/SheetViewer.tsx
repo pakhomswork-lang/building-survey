@@ -1,13 +1,13 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { createPoint, db, getMyIds, PHOTO_TYPES, type PhotoType } from './db'
+import { createPoint, db, getMyIds, PHOTO_TYPES, type PhotoType, type Room } from './db'
 import { plural, TYPE_KEYS } from './format'
 import { Icon } from './Icon'
 import { useProjectFolder } from './pcFolder'
 import { usePeople } from './people'
 import { PointPanel } from './PointPanel'
 import { RoomPanel } from './RoomPanel'
-import { canEditRooms, contourCenter, createRoom, roomAt, roomColor, roomsOfSheet, roomTitle } from './rooms'
+import { canEditRooms, contourCenter, createRoom, roomAt, roomColor, roomsOfSheet, roomTitle, updateRoom } from './rooms'
 import { snapPoint } from './roomSnap'
 import { markerSize, ringBackground } from './markers'
 import { typeColor } from './typeColor'
@@ -50,6 +50,15 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
   const drawing = drawKind !== null
   const [draft, setDraft] = useState<[number, number][]>([])
   const [roomId, setRoomId] = useState<string | null>(null)
+  // правка контура (20г): копия углов; выбранный угол едет за прицелом, пока его не поставят
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editContour, setEditContour] = useState<[number, number][]>([])
+  const [editSel, setEditSel] = useState<number | null>(null)
+  const [editBefore, setEditBefore] = useState<[number, number][]>([])
+  const editing = editId !== null
+  const moving = editSel !== null
+  // прицел в центре нужен при рисовании и когда двигаем угол
+  const aiming = drawing || moving
   // привязки (выравнивания, Р-51) можно выключить галочкой; выбор помнится на этом устройстве
   const [snapOn, setSnapOn] = useState(() => {
     try {
@@ -87,8 +96,122 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
   // можно приблизить до двойного размера исходной картинки, но не меньше чем в 4 раза
   const maxScale = fit ? Math.max(4, 2 / fit) : 4
 
+  // нажатие по листу обрабатывает handleTap ниже (ему нужны функции, которые появляются после usePanZoom)
+  const tapRef = useRef<(tap: Tap) => void>(() => {})
+  const { t, zoomBy, centerOn, handlers } = usePanZoom(viewportRef, content, maxScale, tap => tapRef.current(tap), drawing || editing)
+
+  // где на листе сейчас прицел (середина экрана), в процентах листа
+  const rawAim: [number, number] | null =
+    vp && content
+      ? [
+          Math.min(100, Math.max(0, ((vp.w / 2 - t.x) / t.s / content.w) * 100)),
+          Math.min(100, Math.max(0, ((vp.h / 2 - t.y) / t.s / content.h) * 100)),
+        ]
+      : null
+  // выравнивания (шаг 20в): угол встанет в притянутую точку рядом с прицелом
+  const snap =
+    aiming && snapOn && rawAim && content && rooms
+      ? snapPoint(rawAim, {
+          kx: (content.w * t.s) / 100,
+          ky: (content.h * t.s) / 100,
+          // само правимое помещение к себе не притягиваем
+          rooms: editing ? rooms.filter(r => r.id !== editId) : rooms,
+          // свои углы: при рисовании — поставленные, при правке — соседние с двигаемым
+          own:
+            drawKind === 'poly'
+              ? draft
+              : editSel !== null
+                ? [editContour[(editSel - 1 + editContour.length) % editContour.length], editContour[(editSel + 1) % editContour.length]]
+                : [],
+        })
+      : null
+  const aim = snap?.p ?? rawAim
+  // прямоугольник, который сейчас рисуется: от первого угла до прицела
+  const draftRect = drawKind === 'rect' && draft.length === 1 && aim ? rectContour(draft[0], aim) : null
+  const tooSmall = !!draftRect && !!aim && (Math.abs(aim[0] - draft[0][0]) < 0.5 || Math.abs(aim[1] - draft[0][1]) < 0.5)
+
+  // расстояние между точками листа в пикселях экрана (при текущем приближении)
+  const screenDist = (a: [number, number], b: [number, number]) =>
+    content ? Math.hypot(((a[0] - b[0]) / 100) * content.w * t.s, ((a[1] - b[1]) / 100) * content.h * t.s) : Infinity
+  // по углам: прицел рядом с первым углом — следующее нажатие замкнёт контур
+  const canClose = drawKind === 'poly' && draft.length >= 3 && !!rawAim && screenDist(rawAim, draft[0]) < CLOSE_PX
+  // прицел на последнем угле — второй угол туда же не ставим
+  const onLastCorner = drawKind === 'poly' && draft.length > 0 && !!aim && screenDist(aim, draft[draft.length - 1]) < 4
+
+  // --- правка контура (20г) ---
+  // контур с выбранным углом под прицелом
+  const liveContour = moving && aim ? editContour.map((p, i) => (i === editSel ? aim : p)) : editContour
+  const editMids = editing && !moving ? editContour.map((p, i) => midpoint(p, editContour[(i + 1) % editContour.length])) : []
+
+  function startEdit(room: Room) {
+    setRoomId(null)
+    setEditId(room.id)
+    setEditContour(room.contour)
+    setEditSel(null)
+  }
+
+  /** Нажатие при правке: угол — выбрать его, «+» на середине стены — добавить там угол. */
+  function pickEditHandle(px: number, py: number) {
+    const near = (list: [number, number][]) => {
+      let best = -1
+      let bestD = HANDLE_PX
+      list.forEach((p, i) => {
+        const d = screenDist([px, py], p)
+        if (d < bestD) {
+          best = i
+          bestD = d
+        }
+      })
+      return best
+    }
+    const corner = near(editContour)
+    if (corner >= 0) {
+      setEditBefore(editContour)
+      setEditSel(corner)
+      centerOn(editContour[corner][0], editContour[corner][1])
+      return
+    }
+    const mid = near(editMids)
+    if (mid >= 0) {
+      const m = editMids[mid]
+      setEditBefore(editContour)
+      setEditContour([...editContour.slice(0, mid + 1), m, ...editContour.slice(mid + 1)])
+      setEditSel(mid + 1)
+      centerOn(m[0], m[1])
+    }
+  }
+
+  function placeEditCorner() {
+    setEditContour(liveContour)
+    setEditSel(null)
+  }
+
+  function removeEditCorner() {
+    if (editSel === null || editContour.length <= 3) return
+    setEditContour(editContour.filter((_, i) => i !== editSel))
+    setEditSel(null)
+  }
+
+  function stopEdit() {
+    setEditId(null)
+    setEditSel(null)
+    setEditContour([])
+  }
+
+  async function saveEdit() {
+    const id = editId
+    if (id) await updateRoom(id, { contour: editContour })
+    stopEdit()
+    setRoomId(id)
+  }
+
   async function handleTap(tap: Tap) {
     if (roomMode) {
+      // правка контура: нажатие выбирает угол или «+» на середине стены
+      if (editing) {
+        if (!moving) pickEditHandle(tap.px, tap.py)
+        return
+      }
       // при рисовании угол ставится кнопкой, нажатие по листу ничего не делает
       if (drawing || !rooms) return
       setRoomId(roomAt(tap.px, tap.py, rooms)?.id ?? null)
@@ -105,39 +228,9 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
     const hit = (tap.target as HTMLElement | null)?.closest?.('[data-point-id]')
     setSelectedId(hit?.getAttribute('data-point-id') ?? null)
   }
-
-  const { t, zoomBy, handlers } = usePanZoom(viewportRef, content, maxScale, handleTap, drawing)
-
-  // где на листе сейчас прицел (середина экрана), в процентах листа
-  const rawAim: [number, number] | null =
-    vp && content
-      ? [
-          Math.min(100, Math.max(0, ((vp.w / 2 - t.x) / t.s / content.w) * 100)),
-          Math.min(100, Math.max(0, ((vp.h / 2 - t.y) / t.s / content.h) * 100)),
-        ]
-      : null
-  // выравнивания (шаг 20в): угол встанет в притянутую точку рядом с прицелом
-  const snap =
-    drawing && snapOn && rawAim && content && rooms
-      ? snapPoint(rawAim, {
-          kx: (content.w * t.s) / 100,
-          ky: (content.h * t.s) / 100,
-          rooms,
-          own: drawKind === 'poly' ? draft : [],
-        })
-      : null
-  const aim = snap?.p ?? rawAim
-  // прямоугольник, который сейчас рисуется: от первого угла до прицела
-  const draftRect = drawKind === 'rect' && draft.length === 1 && aim ? rectContour(draft[0], aim) : null
-  const tooSmall = !!draftRect && !!aim && (Math.abs(aim[0] - draft[0][0]) < 0.5 || Math.abs(aim[1] - draft[0][1]) < 0.5)
-
-  // расстояние между точками листа в пикселях экрана (при текущем приближении)
-  const screenDist = (a: [number, number], b: [number, number]) =>
-    content ? Math.hypot(((a[0] - b[0]) / 100) * content.w * t.s, ((a[1] - b[1]) / 100) * content.h * t.s) : Infinity
-  // по углам: прицел рядом с первым углом — следующее нажатие замкнёт контур
-  const canClose = drawKind === 'poly' && draft.length >= 3 && !!rawAim && screenDist(rawAim, draft[0]) < CLOSE_PX
-  // прицел на последнем угле — второй угол туда же не ставим
-  const onLastCorner = drawKind === 'poly' && draft.length > 0 && !!aim && screenDist(aim, draft[draft.length - 1]) < 4
+  useEffect(() => {
+    tapRef.current = handleTap
+  })
 
   async function finishRoom(contour: [number, number][]) {
     if (!sheet) return
@@ -283,12 +376,28 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
         {roomMode && (
           <div className="hint-bar">
             <span style={{ flex: 1 }}>
-              {!drawing
-                ? `Помещения: ${rooms?.length ?? 0}` + (rooms?.length ? '. Нажмите на помещение, чтобы открыть' : '')
-                : drawHint}
+              {editing
+                ? moving
+                  ? 'Двигайте лист: угол едет за прицелом'
+                  : 'Нажмите на угол, чтобы передвинуть, или на «+», чтобы добавить угол'
+                : !drawing
+                  ? `Помещения: ${rooms?.length ?? 0}` + (rooms?.length ? '. Нажмите на помещение, чтобы открыть' : '')
+                  : drawHint}
             </span>
             {drawKind === 'poly' && draft.length >= 3 && <button onClick={() => finishRoom(draft)}>Готово</button>}
-            {drawing ? (
+            {editing ? (
+              <button
+                onClick={() => {
+                  if (moving) {
+                    // отменить перемещение этого угла
+                    setEditContour(editBefore)
+                    setEditSel(null)
+                  } else stopEdit()
+                }}
+              >
+                Отмена
+              </button>
+            ) : drawing ? (
               <button onClick={stopDrawing}>Отмена</button>
             ) : (
               <button onClick={() => setRoomMode(false)}>Выйти</button>
@@ -305,7 +414,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
         <div
           ref={viewportRef}
           {...handlers}
-          style={{ position: 'absolute', inset: 0, overflow: 'hidden', touchAction: 'none', cursor: adding ? 'crosshair' : 'grab', background: drawing ? '#e9ecef' : undefined }}
+          style={{ position: 'absolute', inset: 0, overflow: 'hidden', touchAction: 'none', cursor: adding ? 'crosshair' : 'grab', background: drawing || editing ? '#e9ecef' : undefined }}
         >
           {content && url && (
             <div
@@ -333,11 +442,11 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                     <polygon
                       key={r.id}
                       data-room-id={r.id}
-                      points={r.contour.map(([x, y]) => `${x},${y}`).join(' ')}
+                      points={(r.id === editId ? liveContour : r.contour).map(([x, y]) => `${x},${y}`).join(' ')}
                       fill={roomColor(i)}
-                      fillOpacity={r.id === roomId ? 0.3 : 0.12}
+                      fillOpacity={r.id === roomId || r.id === editId ? 0.3 : 0.12}
                       stroke={roomColor(i)}
-                      strokeWidth={r.id === roomId ? 1 : 0.6}
+                      strokeWidth={r.id === roomId || r.id === editId ? 1 : 0.6}
                       vectorEffect="non-scaling-stroke"
                       strokeLinejoin="round"
                     />
@@ -390,7 +499,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                 </svg>
               )}
               {/* куда встанет угол, если он притянут к соседнему углу, стене или оси */}
-              {drawing && !canClose && snap && snap.kind !== 'none' && (
+              {aiming && !canClose && snap && snap.kind !== 'none' && (
                 <div
                   className={'room-snap ' + snap.kind}
                   style={{ left: `${snap.p[0]}%`, top: `${snap.p[1]}%`, transform: `translate(-50%, -50%) scale(${1 / t.s})` }}
@@ -404,9 +513,29 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                     style={{ left: `${x}%`, top: `${y}%`, transform: `translate(-50%, -50%) scale(${1 / t.s})` }}
                   />
                 ))}
+              {/* правка контура: углы и «+» на серединах стен */}
+              {editing &&
+                editContour.map(([x, y], i) =>
+                  i === editSel ? null : (
+                    <div
+                      key={'c' + i}
+                      className="room-corner edit"
+                      style={{ left: `${x}%`, top: `${y}%`, transform: `translate(-50%, -50%) scale(${1 / t.s})` }}
+                    />
+                  ),
+                )}
+              {editMids.map(([x, y], i) => (
+                <div
+                  key={'m' + i}
+                  className="room-mid"
+                  style={{ left: `${x}%`, top: `${y}%`, transform: `translate(-50%, -50%) scale(${1 / t.s})` }}
+                >
+                  +
+                </div>
+              ))}
               {roomMode &&
                 rooms?.map((r, i) => {
-                  const [cx, cy] = contourCenter(r.contour)
+                  const [cx, cy] = contourCenter(r.id === editId ? liveContour : r.contour)
                   return (
                     <div
                       key={r.id}
@@ -464,7 +593,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
         </div>
 
         {/* прицел в центре экрана (Р-49) */}
-        {drawing && (
+        {aiming && (
           <div className="room-aim" aria-hidden="true">
             <i />
             <i />
@@ -492,7 +621,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                 Поставить точку
               </button>
             )}
-            {roomMode && !drawing && mayEditRooms && (
+            {roomMode && !drawing && !editing && mayEditRooms && (
               <div className="room-bar">
                 <button className="add-point" onClick={() => startDrawing('rect')}>
                   Прямоугольник
@@ -502,11 +631,32 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                 </button>
               </div>
             )}
-            {drawing && (
+            {aiming && (
               <label className="snap-toggle">
                 <input type="checkbox" checked={snapOn} onChange={e => toggleSnap(e.target.checked)} />
                 Привязки
               </label>
+            )}
+            {editing && !moving && (
+              <div className="room-bar">
+                <button className="add-point" onClick={saveEdit}>
+                  <Icon name="check" />
+                  Сохранить контур
+                </button>
+              </div>
+            )}
+            {moving && (
+              <div className="room-bar">
+                {editContour.length > 3 && (
+                  <button className="add-point light" onClick={removeEditCorner}>
+                    Удалить угол
+                  </button>
+                )}
+                <button className="add-point" onClick={placeEditCorner}>
+                  <Icon name="check" />
+                  Поставить угол
+                </button>
+              </div>
             )}
             {drawing && (
               <div className="room-bar">
@@ -537,6 +687,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
           color={roomColor(openRoomIndex)}
           canEdit={mayEditRooms}
           onClose={() => setRoomId(null)}
+          onEditContour={() => startEdit(openRoom)}
         />
       )}
 
@@ -555,6 +706,10 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
 
 /** Насколько близко (в пикселях экрана) прицел к первому углу, чтобы замкнуть контур. */
 const CLOSE_PX = 16
+/** Насколько близко надо нажать к углу или «+», чтобы выбрать его при правке контура. */
+const HANDLE_PX = 24
+
+const midpoint = (a: [number, number], b: [number, number]): [number, number] => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
 
 /** Прямоугольник по двум противоположным углам, стороны параллельны краям листа. */
 function rectContour(a: [number, number], b: [number, number]): [number, number][] {
