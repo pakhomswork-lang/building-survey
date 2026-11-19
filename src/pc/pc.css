@@ -663,3 +663,76 @@
   min-width: 0;
   padding: 6px 8px;
 }
+
+/* таблица помещений (шаг 23) */
+.pc-room-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 16px 16px;
+}
+.pc-room-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.pc-room-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 10px 6px 6px;
+  text-align: left;
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--text-muted);
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.pc-room-table td {
+  padding: 2px 6px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.pc-room-sheet td {
+  padding: 14px 6px 6px;
+  font-weight: 600;
+  border-bottom: 0;
+}
+.pc-room-num {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pc-cell {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+}
+.pc-cell:hover {
+  border-color: var(--line);
+}
+.pc-cell:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+}
+.pc-num {
+  text-align: right;
+  color: var(--text-muted);
+}
+/* три вкладки («План», «Все фото», «Помещения») в одну строку */
+.pc-tabs button {
+  white-space: nowrap;
+  padding: 0 4px;
+  font-size: 13px;
+}
+.pc-room-table .btn-link {
+  font-size: 13px;
+  white-space: nowrap;
+}

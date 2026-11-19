@@ -15,11 +15,12 @@ import { PcFilterBar } from './PcFilterBar'
 import { PcPhotoGrid, PcPhotoPreview, type GridSize } from './PcPhotoGrid'
 import { PcSheet } from './PcSheet'
 import { PcRoomPanel } from './PcRoomPanel'
+import { PcRoomTable } from './PcRoomTable'
 import { canEditRooms, pointRoomText, roomOfPoint, roomsOfProject, roomTitle, setPointRoom } from '../rooms'
 import { buildPhotoCsv, csvFileName, saveTextFile } from './exportPhotos'
 import { attachPdf, removePdf } from './sheetPdf'
 
-type Mode = 'plan' | 'grid'
+type Mode = 'plan' | 'grid' | 'rooms'
 
 /**
  * Экран объекта на компьютере (Р-40, Р-41). Два вида:
@@ -184,6 +185,9 @@ export function PcProject({ projectId }: { projectId: string }) {
           <button className={mode === 'grid' ? 'on' : ''} onClick={() => setMode('grid')}>
             Все фото
           </button>
+          <button className={mode === 'rooms' ? 'on' : ''} onClick={() => setMode('rooms')}>
+            Помещения
+          </button>
         </div>
         {mode === 'plan' && (
           <nav className="pc-sheets">
@@ -230,6 +234,37 @@ export function PcProject({ projectId }: { projectId: string }) {
       </aside>
 
       <section className="pc-main">
+        {mode === 'rooms' ? (
+          <>
+            <div className="pc-filters">
+              <div className="pc-sheet-name">
+                <b>Помещения: {[...data.rooms.values()].reduce((n, l) => n + l.length, 0)}</b>
+              </div>
+              <div className="pc-muted" style={{ paddingTop: 6 }}>
+                {mayEditRooms
+                  ? 'Номер, название и комментарий правятся прямо в таблице: Enter или щелчок мимо — сохранить, Tab — к следующей ячейке, Esc — отменить.'
+                  : 'Помещения правит создатель объекта.'}
+              </div>
+            </div>
+            <PcRoomTable
+              sheets={data.sheets}
+              rooms={data.rooms}
+              pointRoom={pointRoom}
+              points={data.points}
+              photos={data.photos}
+              canEdit={mayEditRooms}
+              onShow={r => {
+                setMode('plan')
+                setChosenSheet(r.sheetId)
+                setSelectedPoint(null)
+                setRoomMode(true)
+                setEditId(null)
+                setRoomId(r.id)
+              }}
+            />
+          </>
+        ) : (
+          <>
         <div className="pc-filters">
           {mode === 'plan' && sheet && (
             <div className="pc-sheet-name">
@@ -308,10 +343,14 @@ export function PcProject({ projectId }: { projectId: string }) {
             size={size}
           />
         )}
+          </>
+        )}
       </section>
 
       <aside className="pc-right">
-        {mode === 'plan' && roomMode ? (
+        {mode === 'rooms' ? (
+          <p className="pc-muted">«На плане» в строке — открыть помещение на листе.</p>
+        ) : mode === 'plan' && roomMode ? (
           roomId && !editId ? (
             <PcRoomPanel roomId={roomId} canEdit={mayEditRooms} onEditContour={() => setEditId(roomId)} onClose={() => setRoomId(null)} />
           ) : (
