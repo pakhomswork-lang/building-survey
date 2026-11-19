@@ -16,11 +16,12 @@ import { PcPhotoGrid, PcPhotoPreview, type GridSize } from './PcPhotoGrid'
 import { PcSheet } from './PcSheet'
 import { PcRoomPanel } from './PcRoomPanel'
 import { PcRoomTable } from './PcRoomTable'
+import { ListsPanel } from '../ListsPanel'
 import { canEditRooms, pointRoomText, roomOfPoint, roomsOfProject, roomTitle, setPointRoom } from '../rooms'
 import { buildPhotoCsv, csvFileName, saveTextFile } from './exportPhotos'
 import { attachPdf, removePdf } from './sheetPdf'
 
-type Mode = 'plan' | 'grid' | 'rooms'
+type Mode = 'plan' | 'grid' | 'rooms' | 'lists'
 
 /**
  * Экран объекта на компьютере (Р-40, Р-41). Два вида:
@@ -188,6 +189,9 @@ export function PcProject({ projectId }: { projectId: string }) {
           <button className={mode === 'rooms' ? 'on' : ''} onClick={() => setMode('rooms')}>
             Помещения
           </button>
+          <button className={mode === 'lists' ? 'on' : ''} onClick={() => setMode('lists')}>
+            Списки
+          </button>
         </div>
         {mode === 'plan' && (
           <nav className="pc-sheets">
@@ -234,7 +238,11 @@ export function PcProject({ projectId }: { projectId: string }) {
       </aside>
 
       <section className="pc-main">
-        {mode === 'rooms' ? (
+        {mode === 'lists' ? (
+          <div className="pc-lists">
+            <ListsPanel owner={{ kind: 'project', projectId }} />
+          </div>
+        ) : mode === 'rooms' ? (
           <>
             <div className="pc-filters">
               <div className="pc-sheet-name">
@@ -348,7 +356,11 @@ export function PcProject({ projectId }: { projectId: string }) {
       </section>
 
       <aside className="pc-right">
-        {mode === 'rooms' ? (
+        {mode === 'lists' ? (
+          <p className="pc-muted">
+            Списки видит вся бригада, править может любой участник. Готовые списки можно взять из шаблонов: <a href="#/templates">шаблоны списков</a>.
+          </p>
+        ) : mode === 'rooms' ? (
           <p className="pc-muted">«На плане» в строке — открыть помещение на листе.</p>
         ) : mode === 'plan' && roomMode ? (
           roomId && !editId ? (

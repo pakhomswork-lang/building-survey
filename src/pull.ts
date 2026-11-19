@@ -9,7 +9,7 @@
 // остаётся более поздняя правка (Р-14).
 
 import type { EntityTable } from 'dexie'
-import { db, type Photo, type PhotoType, type Point, type Project, type Room, type Sheet, type SyncFields } from './db'
+import { db, type List, type ListItem, type ListTemplate, type Mark, type Photo, type PhotoType, type Point, type Project, type Room, type Sheet, type SyncFields } from './db'
 import { sheetImageFromBlob } from './sheetImport'
 import { refreshPeople } from './people'
 import { supabase } from './supabase'
@@ -36,6 +36,20 @@ async function fetchChanged(table: string): Promise<{ rows: Row[]; cursor: strin
     from = (data[data.length - 1] as Row).server_updated_at
   }
   return { rows, cursor: rows.length ? rows[rows.length - 1].server_updated_at : saved ?? null }
+}
+
+/**
+ * То же для таблиц, которых на сервере может ещё не быть (новый скрипт не запущен):
+ * тогда считаем, что ничего нового нет, и не ломаем получение остального.
+ */
+async function fetchChangedIfExists(table: string): Promise<{ rows: Row[]; cursor: string | null }> {
+  try {
+    return await fetchChanged(table)
+  } catch (e) {
+    const m = (e as Error).message.toLowerCase()
+    if (m.includes('does not exist') || m.includes('schema cache') || m.includes('could not find')) return { rows: [], cursor: null }
+    throw e
+  }
 }
 
 const saveCursor = (table: string, cursor: string | null) =>
@@ -81,6 +95,18 @@ const toRoom = (r: Row): Room => ({
   name: String(r.name ?? ''),
   comment: String(r.comment ?? ''),
 })
+const toItems = (v: unknown): ListItem[] => (Array.isArray(v) ? (v as ListItem[]) : [])
+const toList = (r: Row): List => ({ ...common(r), projectId: String(r.project_id), name: String(r.name ?? ''), items: toItems(r.items) })
+const toMark = (r: Row): Mark => ({
+  ...common(r),
+  projectId: String(r.project_id),
+  sheetId: String(r.sheet_id),
+  listId: String(r.list_id),
+  itemId: String(r.item_id),
+  x: Number(r.x),
+  y: Number(r.y),
+})
+const toTemplate = (r: Row): ListTemplate => ({ ...common(r), name: String(r.name ?? ''), items: toItems(r.items) })
 const toPhoto = (r: Row): Photo => ({
   ...common(r),
   projectId: String(r.project_id),
@@ -156,12 +182,18 @@ async function pullOnce(userId: string) {
   const projects = await fetchChanged('projects')
   const sheets = await fetchChanged('sheets')
   const rooms = await fetchChanged('rooms')
+  const lists = await fetchChangedIfExists('lists')
+  const marks = await fetchChangedIfExists('marks')
+  const templates = await fetchChangedIfExists('list_templates')
   const points = await fetchChanged('points')
   const photos = await fetchChanged('photos')
 
   await applyRows(db.projects, projects.rows, toProject)
   const changedSheets = await applyRows(db.sheets, sheets.rows, toSheet)
   await applyRows(db.rooms, rooms.rows, toRoom)
+  await applyRows(db.lists, lists.rows, toList)
+  await applyRows(db.marks, marks.rows, toMark)
+  await applyRows(db.listTemplates, templates.rows, toTemplate)
   await applyRows(db.points, points.rows, toPoint)
   const changedPhotos = await applyRows(db.photos, photos.rows, toPhoto)
 
@@ -173,6 +205,9 @@ async function pullOnce(userId: string) {
   await saveCursor('projects', projects.cursor)
   await saveCursor('sheets', sheets.cursor)
   await saveCursor('rooms', rooms.cursor)
+  await saveCursor('lists', lists.cursor)
+  await saveCursor('marks', marks.cursor)
+  await saveCursor('list_templates', templates.cursor)
   await saveCursor('points', points.cursor)
   await saveCursor('photos', photos.cursor)
 
@@ -206,7 +241,7 @@ export async function pullAll() {
   }
 }
 
-const TABLES = ['projects', 'sheets', 'rooms', 'points', 'photos']
+const TABLES = ['projects', 'sheets', 'rooms', 'lists', 'marks', 'list_templates', 'points', 'photos']
 
 /**
  * Получает изменения сам: при входе и запуске, сразу после изменения на сервере

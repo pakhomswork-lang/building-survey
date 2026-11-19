@@ -86,6 +86,38 @@ export interface Photo extends SyncFields {
   takenAt: number
 }
 
+/** Позиция своего списка (Р-47, Р-55). id постоянный: по нему на позицию ссылаются отметки. */
+export interface ListItem {
+  id: string
+  name: string
+  /** Цвет отметок этой позиции, например #e8590c. */
+  color: string
+}
+
+/** Свой список объекта: одна характеристика («Материал стен») и её позиции. Правит любой участник (Р-48). */
+export interface List extends SyncFields {
+  projectId: string
+  name: string
+  items: ListItem[]
+}
+
+/** Отметка на плане: одна позиция одного списка, без номера и фото (шаг 25). */
+export interface Mark extends SyncFields {
+  projectId: string
+  sheetId: string
+  listId: string
+  itemId: string
+  /** Положение на листе в процентах (0–100). */
+  x: number
+  y: number
+}
+
+/** Шаблон списка вне объекта, хранится в аккаунте (Р-48 п. 4). */
+export interface ListTemplate extends SyncFields {
+  name: string
+  items: ListItem[]
+}
+
 /** Картинка листа. Пока хранится только на устройстве. */
 export interface SheetImage {
   sheetId: string
@@ -147,6 +179,9 @@ export const db = new Dexie('building-survey') as Dexie & {
   folderThumbs: EntityTable<FolderThumb, 'fileName'>
   sheetPdfs: EntityTable<SheetPdf, 'sheetId'>
   rooms: EntityTable<Room, 'id'>
+  lists: EntityTable<List, 'id'>
+  marks: EntityTable<Mark, 'id'>
+  listTemplates: EntityTable<ListTemplate, 'id'>
 }
 
 // Здесь перечислены только поля, по которым ищем. Остальные поля хранятся и так.
@@ -178,6 +213,13 @@ db.version(4).stores({
 // v5: помещения на листах (Р-46, Р-48)
 db.version(5).stores({
   rooms: 'id, projectId, sheetId, updatedAt',
+})
+
+// v6: свои списки, отметки на плане, шаблоны списков (Р-47, Р-55)
+db.version(6).stores({
+  lists: 'id, projectId, updatedAt',
+  marks: 'id, projectId, sheetId, listId, updatedAt',
+  listTemplates: 'id, updatedAt',
 })
 
 /** id пользователя этого устройства. Создаётся один раз при первом запуске. */
@@ -237,10 +279,10 @@ export async function newRecordFields(): Promise<SyncFields> {
 export async function adoptDeviceRecords(projectId: string, accountId: string) {
   const deviceId = await getUserId()
   if (deviceId === accountId) return
-  await db.transaction('rw', [db.projects, db.sheets, db.points, db.photos, db.rooms], async () => {
+  await db.transaction('rw', [db.projects, db.sheets, db.points, db.photos, db.rooms, db.lists, db.marks], async () => {
     const project = await db.projects.get(projectId)
     if (project?.authorId === deviceId) await db.projects.update(projectId, { authorId: accountId })
-    for (const table of [db.sheets, db.points, db.photos, db.rooms] as const) {
+    for (const table of [db.sheets, db.points, db.photos, db.rooms, db.lists, db.marks] as const) {
       await (table as typeof db.sheets)
         .where('projectId')
         .equals(projectId)
@@ -312,7 +354,7 @@ export async function deletePoint(pointId: string) {
 }
 
 export async function deleteSheet(sheetId: string) {
-  await db.transaction('rw', [db.sheets, db.sheetImages, db.points, db.photos, db.photoFiles, db.rooms], async () => {
+  await db.transaction('rw', [db.sheets, db.sheetImages, db.points, db.photos, db.photoFiles, db.rooms, db.marks], async () => {
     await db.sheets.update(sheetId, deletedNow())
     await db.sheetImages.delete(sheetId)
     const points = await db.points.where('sheetId').equals(sheetId).primaryKeys()
@@ -321,13 +363,19 @@ export async function deleteSheet(sheetId: string) {
     // у остальных удаление останется в телефоне, лист всё равно удалён)
     const rooms = await db.rooms.where('sheetId').equals(sheetId).primaryKeys()
     await db.rooms.bulkUpdate(rooms.map(key => ({ key, changes: deletedNow() })))
+    const marks = await db.marks.where('sheetId').equals(sheetId).primaryKeys()
+    await db.marks.bulkUpdate(marks.map(key => ({ key, changes: deletedNow() })))
     await deletePhotosWhere('sheetId', sheetId)
   })
 }
 
 export async function deleteProject(projectId: string) {
-  await db.transaction('rw', [db.projects, db.sheets, db.sheetImages, db.points, db.photos, db.photoFiles, db.rooms], async () => {
+  await db.transaction('rw', [db.projects, db.sheets, db.sheetImages, db.points, db.photos, db.photoFiles, db.rooms, db.lists, db.marks], async () => {
     await db.projects.update(projectId, deletedNow())
+    for (const table of [db.lists, db.marks] as const) {
+      const keys = await (table as typeof db.lists).where('projectId').equals(projectId).primaryKeys()
+      await (table as typeof db.lists).bulkUpdate(keys.map(key => ({ key, changes: deletedNow() })))
+    }
     const rooms = await db.rooms.where('projectId').equals(projectId).primaryKeys()
     await db.rooms.bulkUpdate(rooms.map(key => ({ key, changes: deletedNow() })))
     const sheets = await db.sheets.where('projectId').equals(projectId).primaryKeys()

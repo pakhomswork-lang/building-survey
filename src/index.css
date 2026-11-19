@@ -1241,3 +1241,101 @@ button.point-room {
 .list .item.on {
   background: var(--raised, rgba(20, 23, 28, 0.06));
 }
+
+/* свои списки (шаг 24) */
+.list-swatches {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+.list-swatches small {
+  margin-left: 4px;
+}
+.lists-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+.lists-actions .btn {
+  flex: 1;
+}
+.btn-outline:disabled {
+  opacity: 0.45;
+}
+.list-label {
+  display: block;
+  margin: 18px 0 6px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.list-editor-head {
+  margin-bottom: 4px;
+}
+.list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.list-item-row {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.list-item-no {
+  width: 22px;
+  text-align: right;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.list-color {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--line);
+  cursor: pointer;
+}
+.list-color.on {
+  box-shadow: 0 0 0 2px var(--text);
+}
+.list-item-name {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+}
+.list-item-count {
+  font-size: 12px;
+}
+.list-mini {
+  flex: none;
+  width: 32px;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 16px;
+  cursor: pointer;
+}
+.list-mini:disabled {
+  opacity: 0.3;
+}
+.list-mini.danger {
+  color: var(--danger, #c92a2a);
+}
+.list-mini.add {
+  background: var(--text);
+  color: #fff;
+}
+.list-palette {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 0 4px 28px;
+}

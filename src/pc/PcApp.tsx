@@ -8,10 +8,12 @@ import { startAutoPush } from '../sync'
 import { APP_VERSION } from '../version'
 import { PcProject } from './PcProject'
 import { PcProjects } from './PcProjects'
+import { ListsPanel } from '../ListsPanel'
 
-// Экраны версии для компьютера: #/ — объекты, #/p/<id> — объект.
+// Экраны версии для компьютера: #/ — объекты, #/p/<id> — объект, #/templates — шаблоны списков.
 function parse(hash: string): string | null {
   const [, screen, id] = hash.replace(/^#/, '').split('/')
+  if (screen === 'templates') return 'templates'
   return screen === 'p' && id ? id : null
 }
 
@@ -91,7 +93,15 @@ export function PcApp() {
           </button>
         )}
       </header>
-      {projectId ? (
+      {projectId === 'templates' ? (
+        <main className="pc-page pc-lists-page">
+          <a className="pc-back" href="#/">
+            ← Объекты
+          </a>
+          <h1 className="pc-title">Шаблоны списков</h1>
+          <ListsPanel owner={{ kind: 'templates' }} />
+        </main>
+      ) : projectId ? (
         <PcProject key={projectId} projectId={projectId} />
       ) : (
         <PcProjects signedIn={!!account} version={APP_VERSION} />

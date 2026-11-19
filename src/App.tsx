@@ -4,6 +4,7 @@ import { AccountForm } from './AccountForm'
 import { getUserProfile, setAccountId, type UserProfile } from './db'
 import { Icon } from './Icon'
 import { JoinScreen } from './JoinScreen'
+import { ListsPanel } from './ListsPanel'
 import { ProfileForm } from './ProfileForm'
 import { isComputer } from './pcFolder'
 import { ProjectList } from './ProjectList'
@@ -149,6 +150,16 @@ function App() {
         <ProjectScreen projectId={route.projectId} onBack={() => history.back()} />
       ) : route.screen === 'photos' ? (
         <ProjectPhotos projectId={route.projectId} onBack={() => history.back()} />
+      ) : route.screen === 'lists' || route.screen === 'templates' ? (
+        <>
+          <div className="page-top">
+            <button className="icon-btn" aria-label="Назад" onClick={() => history.back()}>
+              <Icon name="back" />
+            </button>
+          </div>
+          <h1 className="page-title">{route.screen === 'lists' ? 'Списки' : 'Шаблоны списков'}</h1>
+          <ListsPanel owner={route.screen === 'lists' ? { kind: 'project', projectId: route.projectId } : { kind: 'templates' }} />
+        </>
       ) : (
         <>
           <div className="page-top">
@@ -159,6 +170,16 @@ function App() {
           </div>
           <h1 className="page-title">Объекты</h1>
           <ProjectList onOpen={projectId => navigate({ screen: 'project', projectId })} />
+          <div className="list" style={{ marginTop: 24 }}>
+            <button className="item" onClick={() => navigate({ screen: 'templates' })}>
+              <Icon name="file" />
+              <div className="grow">
+                <b>Шаблоны списков</b>
+                <small>Готовые списки для загрузки в объекты</small>
+              </div>
+              <Icon name="right" />
+            </button>
+          </div>
           {isComputer && <PcLink />}
           {account !== undefined && (
             <div className="list" style={{ marginTop: 24 }}>

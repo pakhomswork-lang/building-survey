@@ -24,7 +24,7 @@
 </head>
 <body>
 <h1>Проверка сервера бригады</h1>
-<p class="hint">Шаги 14а, 15а и 19а. Проверяет правила базы после запуска <code>02_sync.sql</code>–<code>05_rooms.sql</code>: кто что видит и меняет. Создаёт тестовый объект «ТЕСТ проверки» и в конце удаляет его.</p>
+<p class="hint">Шаги 14а, 15а, 19а и 24а. Проверяет правила базы после запуска <code>02_sync.sql</code>–<code>06_lists.sql</code>: кто что видит и меняет. Создаёт тестовый объект «ТЕСТ проверки» и в конце удаляет его.</p>
 
 <section>
   <h2>1. Вход</h2>
@@ -132,6 +132,11 @@ $('run').onclick = async () => {
   const F = rec({ project_id: P.id, sheet_id: S.id, point_id: T.id, type: 'defect', file_name: 'TST_20261111_120000_abcd.jpg', taken_at: now() })
   // помещение — прямоугольник 4 угла
   const R = rec({ project_id: P.id, sheet_id: S.id, contour: [[10, 10], [40, 10], [40, 30], [10, 30]], number: '1', name: 'Коридор' })
+  // свой список, отметка и шаблон (шаг 24а)
+  const items = [{ id: 'a1', name: 'Кирпичные', color: '#e8590c' }, { id: 'a2', name: 'Деревянные', color: '#1c7ed6' }]
+  const L = rec({ project_id: P.id, name: 'Материал стен', items })
+  const M = rec({ project_id: P.id, sheet_id: S.id, list_id: L.id, item_id: 'a1', x: 15, y: 25 })
+  const TPL = rec({ name: 'Покрытие полов', items })
   const files = []
 
   // мгновенные обновления: ждём событие о своей точке
@@ -276,6 +281,48 @@ $('run').onclick = async () => {
   await step('Нельзя: контур не из чисел', () =>
     mustFail(sb.from('rooms').insert({ ...R, id: crypto.randomUUID(), contour: [['a', 1], [2, 1], [1, 5]] })))
 
+  // свои списки, отметки, шаблоны (шаг 24а)
+  await step('Таблицы списков, отметок и шаблонов на месте', async () => {
+    for (const t of ['lists', 'marks', 'list_templates']) await must(sb.from(t).select('*').limit(1))
+  })
+  await step('Создать список с позициями', async () => {
+    const [row] = await must(sb.from('lists').insert(L).select())
+    if (row.author_id !== me || row.items.length !== 2) throw new Error(JSON.stringify(row))
+  })
+  await step('Переименовать список и позицию, добавить позицию', async () => {
+    const next = [{ ...items[0], name: 'Кирпич' }, items[1], { id: 'a3', name: 'Гипсокартон', color: '#2f9e44' }]
+    const rows = await must(sb.from('lists').update({ name: 'Стены', items: next, updated_at: now() + 1 }).eq('id', L.id).select())
+    if (rows.length !== 1 || rows[0].items.length !== 3 || rows[0].items[0].name !== 'Кирпич') throw new Error(JSON.stringify(rows))
+  })
+  await step('Автор списка при правке не меняется', async () => {
+    await must(sb.from('lists').update({ author_id: stranger, updated_at: now() + 2 }).eq('id', L.id))
+    const [row] = await must(sb.from('lists').select('author_id').eq('id', L.id))
+    if (row.author_id !== me) throw new Error('автор стал ' + row.author_id)
+  })
+  await step('Нельзя: позиции не списком', () =>
+    mustFail(sb.from('lists').insert(rec({ project_id: P.id, name: 'плохой', items: { a: 1 } }))))
+  await step('Нельзя: позиция без цвета', () =>
+    mustFail(sb.from('lists').insert(rec({ project_id: P.id, name: 'плохой', items: [{ id: 'x', name: 'без цвета' }] }))))
+  await step('Поставить отметку', async () => {
+    const [row] = await must(sb.from('marks').insert(M).select())
+    if (row.item_id !== 'a1') throw new Error(JSON.stringify(row))
+  })
+  await step('Перенести отметку в другую позицию', async () => {
+    const rows = await must(sb.from('marks').update({ item_id: 'a2', updated_at: now() + 1 }).eq('id', M.id).select())
+    if (rows.length !== 1 || rows[0].item_id !== 'a2') throw new Error(JSON.stringify(rows))
+  })
+  await step('Нельзя: отметка вне листа (x = 150)', () =>
+    mustFail(sb.from('marks').insert({ ...M, id: crypto.randomUUID(), x: 150 })))
+  await step('Нельзя: отметка без позиции', () =>
+    mustFail(sb.from('marks').insert({ ...M, id: crypto.randomUUID(), item_id: '' })))
+  await step('Создать свой шаблон и прочитать его', async () => {
+    await must(sb.from('list_templates').insert(TPL))
+    const rows = await must(sb.from('list_templates').select('name').eq('id', TPL.id))
+    if (rows.length !== 1) throw new Error('шаблон не виден')
+  })
+  await step('Нельзя: шаблон от чужого имени', () =>
+    mustFail(sb.from('list_templates').insert(rec({ name: 'чужой', items: [], author_id: stranger }))))
+
   // не участник
   await step('Второй объект с листом и картинкой', async () => {
     await must(sb.from('projects').insert(Q))
@@ -300,6 +347,11 @@ $('run').onclick = async () => {
   await step('Помещение нельзя положить на лист другого объекта', () =>
     mustFail(sb.from('rooms').insert(rec({ project_id: P.id, sheet_id: SQ.id, contour: [[1, 1], [5, 1], [5, 5]] }))))
 
+  await step('Не участник: нельзя добавить список', () =>
+    mustFail(sb.from('lists').insert(rec({ project_id: Q.id, name: 'чужой', items: [] }))))
+  await step('Отметку нельзя связать со списком другого объекта', () =>
+    mustFail(sb.from('marks').insert(rec({ project_id: P.id, sheet_id: S.id, list_id: crypto.randomUUID(), item_id: 'a1', x: 1, y: 1 }))))
+
   await step('Не участник: нельзя получить ссылку-приглашение', () =>
     mustFail(sb.rpc('invite_token', { p_project: Q.id })))
 
@@ -316,6 +368,9 @@ $('run').onclick = async () => {
     const tryDo = async (what, promise) => { const { error } = await promise; if (error) problems.push(what + ': ' + error.message) }
     if (files.length) await tryDo('файлы', sb.storage.from('sheets').remove(files))
     await tryDo('фото', sb.from('photos').delete().eq('id', F.id))
+    await tryDo('отметки', sb.from('marks').delete().eq('id', M.id))
+    await tryDo('списки', sb.from('lists').delete().eq('id', L.id))
+    await tryDo('шаблоны', sb.from('list_templates').delete().eq('id', TPL.id))
     await tryDo('помещения', sb.from('rooms').delete().eq('id', R.id))
     await tryDo('точки', sb.from('points').delete().eq('id', T.id))
     await tryDo('листы', sb.from('sheets').delete().in('id', [S.id, SQ.id]))

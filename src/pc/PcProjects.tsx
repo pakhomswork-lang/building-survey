@@ -47,6 +47,11 @@ export function PcProjects({ signedIn, version }: { signedIn: boolean; version: 
           </a>
         ))}
       </div>
+      <p style={{ marginTop: 32 }}>
+        <a className="pc-btn" href="#/templates" style={{ display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}>
+          Шаблоны списков
+        </a>
+      </p>
       <p className="pc-muted" style={{ marginTop: 40, fontSize: 12 }}>
         Версия {version}. <a href="../">Телефонная версия</a>
       </p>

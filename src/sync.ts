@@ -8,7 +8,8 @@
 
 import { liveQuery } from 'dexie'
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import { adoptDeviceRecords, db, getAccountId, getMyIds, type Photo, type Point, type Project, type Room, type Sheet, type SheetImage, type SyncFields } from './db'
+import { adoptDeviceRecords, db, getAccountId, getMyIds, type List, type ListTemplate, type Mark, type Photo, type Point, type Project, type Room, type Sheet, type SheetImage, type SyncFields } from './db'
+import { adoptDeviceTemplates } from './lists'
 import { explainNetwork, supabase } from './supabase'
 
 const BUCKET = 'sheets'
@@ -26,6 +27,8 @@ interface Pending {
   project: Project | null
   sheets: Sheet[]
   rooms: Room[]
+  lists: List[]
+  marks: Mark[]
   points: Point[]
   photos: Photo[]
 }
@@ -33,9 +36,11 @@ interface Pending {
 /** Что из объекта ждёт отправки. myIds — аккаунт и id телефона (записи, сделанные без входа). */
 async function pendingIn(project: Project, myIds: Set<string>): Promise<Pending> {
   const mine = (r: SyncFields) => myIds.has(r.authorId)
-  const [sheets, rooms, points, photos] = await Promise.all([
+  const [sheets, rooms, lists, marks, points, photos] = await Promise.all([
     db.sheets.where('projectId').equals(project.id).toArray(),
     db.rooms.where('projectId').equals(project.id).toArray(),
+    db.lists.where('projectId').equals(project.id).toArray(),
+    db.marks.where('projectId').equals(project.id).toArray(),
     db.points.where('projectId').equals(project.id).toArray(),
     db.photos.where('projectId').equals(project.id).toArray(),
   ])
@@ -43,12 +48,15 @@ async function pendingIn(project: Project, myIds: Set<string>): Promise<Pending>
     project: mine(project) && waits(project) ? project : null,
     sheets: sheets.filter(s => mine(s) && sheetWaits(s)),
     rooms: rooms.filter(r => mine(r) && waits(r)),
+    // списки и отметки правит любой участник (Р-48): отправляем и правки чужих
+    lists: lists.filter(waits),
+    marks: marks.filter(waits),
     points: points.filter(p => mine(p) && waits(p)),
     photos: photos.filter(p => mine(p) && waits(p)),
   }
 }
 
-const countOf = (p: Pending) => (p.project ? 1 : 0) + p.sheets.length + p.rooms.length + p.points.length + p.photos.length
+const countOf = (p: Pending) => (p.project ? 1 : 0) + p.sheets.length + p.rooms.length + p.lists.length + p.marks.length + p.points.length + p.photos.length
 
 /** Сколько записей объекта ждёт отправки. Для строки на экране объекта. */
 export async function countPending(projectId: string): Promise<number> {
@@ -94,6 +102,17 @@ const roomRow = (r: Room) => ({
   name: r.name,
   comment: r.comment,
 })
+const listRow = (l: List) => ({ ...common(l), project_id: l.projectId, name: l.name, items: l.items })
+const markRow = (m: Mark) => ({
+  ...common(m),
+  project_id: m.projectId,
+  sheet_id: m.sheetId,
+  list_id: m.listId,
+  item_id: m.itemId,
+  x: m.x,
+  y: m.y,
+})
+const templateRow = (t: ListTemplate) => ({ ...common(t), name: t.name, items: t.items })
 const photoRow = (p: Photo) => ({
   ...common(p),
   project_id: p.projectId,
@@ -119,8 +138,10 @@ async function upsert(table: string, rows: object[]) {
   if (error) throw new Error(explain(error.message))
 }
 
+type SyncTable = typeof db.points | typeof db.photos | typeof db.projects | typeof db.rooms | typeof db.lists | typeof db.marks | typeof db.listTemplates
+
 /** Отмечаем, что эта правка записи на сервере. Если запись успели поменять снова — не отмечаем. */
-async function markPushed(table: typeof db.points | typeof db.photos | typeof db.projects | typeof db.rooms, records: SyncFields[]) {
+async function markPushed(table: SyncTable, records: SyncFields[]) {
   await db.transaction('rw', table, async () => {
     for (const r of records) {
       await (table as typeof db.points)
@@ -135,7 +156,7 @@ async function markPushed(table: typeof db.points | typeof db.photos | typeof db
 /** Отправляет записи пачками. Если пачку не приняли, пробуем по одной, чтобы одна плохая не держала остальные. */
 async function pushRecords<T extends SyncFields>(
   name: string,
-  table: typeof db.points | typeof db.photos | typeof db.rooms,
+  table: SyncTable,
   records: T[],
   toRow: (r: T) => object,
   errors: string[],
@@ -206,6 +227,8 @@ async function pushProjectData(projectId: string, accountId: string, errors: str
     }
   }
   await pushRecords('rooms', db.rooms, p.rooms, roomRow, errors)
+  await pushRecords('lists', db.lists, p.lists, listRow, errors)
+  await pushRecords('marks', db.marks, p.marks, markRow, errors)
   await pushRecords('points', db.points, p.points, pointRow, errors)
   await pushRecords('photos', db.photos, p.photos, photoRow, errors)
 }
@@ -249,6 +272,12 @@ export function useOnline(): boolean {
   return online
 }
 
+/** Свои шаблоны списков, которые ждут отправки (шаблоны живут в аккаунте, Р-48). */
+async function templatesToPush(accountId: string): Promise<ListTemplate[]> {
+  await adoptDeviceTemplates()
+  return (await db.listTemplates.toArray()).filter(t => t.authorId === accountId && waits(t))
+}
+
 // --- запуск ---
 
 let running = false
@@ -267,10 +296,12 @@ export async function pushAll() {
       const accountId = await getAccountId()
       if (!accountId || !navigator.onLine) return
       const shared = (await db.projects.toArray()).filter(p => p.shared)
-      if (!shared.length) return
+      const templates = await templatesToPush(accountId)
+      if (!shared.length && !templates.length) return
       setState({ busy: true })
       const errors: string[] = []
       for (const p of shared) await pushProjectData(p.id, accountId, errors)
+      await pushRecords('list_templates', db.listTemplates, templates, templateRow, errors)
       setState({ error: errors.length ? errors[0] : null })
     } while (again)
   } catch (e) {
@@ -296,6 +327,8 @@ export function startAutoPush(): () => void {
     const shared = (await db.projects.toArray()).filter(p => p.shared)
     let n = 0
     for (const p of shared) n += await countPending(p.id)
+    // шаблоны списков тоже уходят сами
+    n += (await db.listTemplates.toArray()).filter(waits).length
     return n
   }).subscribe(n => {
     waiting = n

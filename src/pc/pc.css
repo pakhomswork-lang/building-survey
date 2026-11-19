@@ -736,3 +736,21 @@
   font-size: 13px;
   white-space: nowrap;
 }
+
+/* свои списки на компьютере (шаг 24) */
+.pc-tabs {
+  flex-wrap: wrap;
+}
+.pc-tabs button {
+  flex: 1 1 45%;
+}
+.pc-lists {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 24px 24px;
+}
+.pc-lists > *,
+.pc-lists-page .lists-panel {
+  max-width: 640px;
+}

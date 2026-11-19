@@ -5,6 +5,7 @@ import { db, deleteProject, renameProject } from './db'
 import { FolderStatus } from './FolderStatus'
 import { plural } from './format'
 import { Icon } from './Icon'
+import { useListCount } from './lists'
 import { isComputer } from './pcFolder'
 import { PcFolderStatus } from './PcFolderStatus'
 import { SheetList } from './SheetList'
@@ -14,6 +15,7 @@ import { navigate } from './useHashRoute'
 export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack: () => void }) {
   // null — объект не найден, undefined — ещё загружаем
   const project = useLiveQuery(async () => (await db.projects.get(projectId)) ?? null, [projectId])
+  const listCount = useListCount(projectId)
   const counts = useLiveQuery(async () => {
     const [sheets, photos] = await Promise.all([
       db.sheets.where('projectId').equals(projectId).toArray(),
@@ -113,6 +115,14 @@ export function ProjectScreen({ projectId, onBack }: { projectId: string; onBack
           <div className="grow">
             <b>Все фото объекта</b>
             <small>Отбор по листу и типу</small>
+          </div>
+          <Icon name="right" />
+        </button>
+        <button className="item" onClick={() => navigate({ screen: 'lists', projectId })}>
+          <Icon name="file" />
+          <div className="grow">
+            <b>Списки</b>
+            <small>{listCount ? `${listCount} · ` : ''}Свои характеристики с цветными позициями</small>
           </div>
           <Icon name="right" />
         </button>
