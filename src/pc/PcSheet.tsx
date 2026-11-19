@@ -306,6 +306,8 @@ export function PcSheet({
 
   const drag = useRef<{ id: number; x: number; y: number; startX: number; startY: number; moved: boolean; button: number; target: EventTarget } | null>(null)
   const [dragging, setDragging] = useState(false)
+  // что под мышью — от этого зависит вид курсора
+  const [hover, setHover] = useState<'none' | 'point' | 'room' | 'corner' | 'mid'>('none')
 
   function onPointerDown(e: PointerEvent<HTMLDivElement>) {
     e.preventDefault()
@@ -339,6 +341,20 @@ export function PcSheet({
     if (roomMode && (drawing || editing)) {
       const p = sheetPos(e)
       if (p) setCursor({ p: clampPt(p), alt: e.altKey })
+    }
+    if (!drag.current) {
+      // курсор: над углом — «переместить», над «+» — «добавить», над помещением или точкой — указатель
+      const p = sheetPos(e)
+      let next: typeof hover = 'none'
+      if (editing) {
+        const hit = p && handleAt(p)
+        next = hit ? ('corner' in hit ? 'corner' : 'mid') : 'none'
+      } else if (roomMode) {
+        next = !drawing && p && rooms && roomAt(p[0], p[1], rooms) ? 'room' : 'none'
+      } else {
+        next = (e.target as HTMLElement).closest?.('[data-point-id]') ? 'point' : 'none'
+      }
+      if (next !== hover) setHover(next)
     }
     const d = drag.current
     if (!d || d.id !== e.pointerId) return
@@ -419,7 +435,21 @@ export function PcSheet({
   return (
     <div
       ref={ref}
-      className={'pc-sheet' + (dragging ? ' dragging' : '') + (drawing ? ' drawing' : '')}
+      className="pc-sheet"
+      style={{
+        cursor:
+          dragging || dragCorner !== null
+            ? 'grabbing'
+            : drawing
+              ? 'crosshair'
+              : hover === 'corner'
+                ? 'move'
+                : hover === 'mid'
+                  ? 'copy'
+                  : hover === 'room' || hover === 'point'
+                    ? 'pointer'
+                    : 'default',
+      }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

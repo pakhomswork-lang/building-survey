@@ -303,14 +303,10 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  cursor: grab;
   user-select: none;
   touch-action: none;
 }
 
-.pc-sheet.dragging {
-  cursor: grabbing;
-}
 
 .pc-sheet img {
   pointer-events: none;
@@ -589,9 +585,6 @@
   cursor: pointer;
 }
 
-.pc-sheet.drawing {
-  cursor: crosshair;
-}
 
 .pc-room-bar {
   position: absolute;
