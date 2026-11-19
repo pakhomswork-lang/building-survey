@@ -44,7 +44,9 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
   const [sheetMenuOpen, setSheetMenuOpen] = useState(false)
   // режим «Помещения» (Р-46, Р-49): видны все помещения; рисование прицелом в центре экрана
   const [roomMode, setRoomMode] = useState(false)
-  const [drawing, setDrawing] = useState(false)
+  // что рисуем: прямоугольник по двум углам или помещение по углам (любая форма)
+  const [drawKind, setDrawKind] = useState<'rect' | 'poly' | null>(null)
+  const drawing = drawKind !== null
   const [draft, setDraft] = useState<[number, number][]>([])
   const [roomId, setRoomId] = useState<string | null>(null)
   const people = usePeople()
@@ -98,26 +100,73 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
         ]
       : null
   // прямоугольник, который сейчас рисуется: от первого угла до прицела
-  const draftRect = drawing && draft.length === 1 && aim ? rectContour(draft[0], aim) : null
+  const draftRect = drawKind === 'rect' && draft.length === 1 && aim ? rectContour(draft[0], aim) : null
   const tooSmall = !!draftRect && !!aim && (Math.abs(aim[0] - draft[0][0]) < 0.5 || Math.abs(aim[1] - draft[0][1]) < 0.5)
+
+  // расстояние между точками листа в пикселях экрана (при текущем приближении)
+  const screenDist = (a: [number, number], b: [number, number]) =>
+    content ? Math.hypot(((a[0] - b[0]) / 100) * content.w * t.s, ((a[1] - b[1]) / 100) * content.h * t.s) : Infinity
+  // по углам: прицел рядом с первым углом — следующее нажатие замкнёт контур
+  const canClose = drawKind === 'poly' && draft.length >= 3 && !!aim && screenDist(aim, draft[0]) < CLOSE_PX
+  // прицел на последнем угле — второй угол туда же не ставим
+  const onLastCorner = drawKind === 'poly' && draft.length > 0 && !!aim && screenDist(aim, draft[draft.length - 1]) < 4
+
+  async function finishRoom(contour: [number, number][]) {
+    if (!sheet) return
+    const room = await createRoom(sheet.projectId, sheet.id, contour)
+    setDrawKind(null)
+    setDraft([])
+    setRoomId(room.id)
+  }
 
   async function placeCorner() {
     if (!aim || !sheet) return
+    if (drawKind === 'poly') {
+      if (canClose) return finishRoom(draft)
+      if (onLastCorner) return
+      setDraft([...draft, aim])
+      return
+    }
     if (draft.length === 0) {
       setDraft([aim])
       return
     }
     if (tooSmall) return
-    const room = await createRoom(sheet.projectId, sheet.id, rectContour(draft[0], aim))
-    setDrawing(false)
+    await finishRoom(rectContour(draft[0], aim))
+  }
+
+  function startDrawing(kind: 'rect' | 'poly') {
+    setRoomId(null)
     setDraft([])
-    setRoomId(room.id)
+    setDrawKind(kind)
   }
 
   function stopDrawing() {
-    setDrawing(false)
+    setDrawKind(null)
     setDraft([])
   }
+
+  // подсказка и надпись на большой кнопке
+  const drawHint =
+    drawKind === 'rect'
+      ? draft.length === 0
+        ? 'Двигайте лист: наведите прицел на первый угол'
+        : 'Наведите прицел на противоположный угол'
+      : draft.length === 0
+        ? 'Двигайте лист: наведите прицел на первый угол'
+        : draft.length < 3
+          ? `Углов: ${draft.length}. Наведите на следующий`
+          : `Углов: ${draft.length}. Замкнуть — навести на первый`
+  const placeLabel =
+    drawKind === 'rect'
+      ? draft.length === 0
+        ? 'Поставить первый угол'
+        : tooSmall
+          ? 'Слишком маленькое'
+          : 'Поставить второй угол'
+      : canClose
+        ? 'Замкнуть контур'
+        : `Поставить угол ${draft.length + 1}`
 
   const openRoomIndex = rooms?.findIndex(r => r.id === roomId) ?? -1
   const openRoom = openRoomIndex >= 0 ? rooms![openRoomIndex] : null
@@ -208,10 +257,9 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
             <span style={{ flex: 1 }}>
               {!drawing
                 ? `Помещения: ${rooms?.length ?? 0}` + (rooms?.length ? '. Нажмите на помещение, чтобы открыть' : '')
-                : draft.length === 0
-                  ? 'Двигайте лист: наведите прицел на первый угол'
-                  : 'Наведите прицел на противоположный угол'}
+                : drawHint}
             </span>
+            {drawKind === 'poly' && draft.length >= 3 && <button onClick={() => finishRoom(draft)}>Готово</button>}
             {drawing ? (
               <button onClick={stopDrawing}>Отмена</button>
             ) : (
@@ -266,6 +314,26 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                       strokeLinejoin="round"
                     />
                   ))}
+                  {drawKind === 'poly' && draft.length > 0 && aim && (
+                    <>
+                      {draft.length >= 2 && (
+                        <polygon
+                          points={[...draft, aim].map(([x, y]) => `${x},${y}`).join(' ')}
+                          fill="#14171c"
+                          fillOpacity={0.06}
+                          stroke="none"
+                        />
+                      )}
+                      <polyline
+                        points={[...draft, canClose ? draft[0] : aim].map(([x, y]) => `${x},${y}`).join(' ')}
+                        fill="none"
+                        stroke="#14171c"
+                        strokeWidth={0.6}
+                        vectorEffect="non-scaling-stroke"
+                        strokeLinejoin="round"
+                      />
+                    </>
+                  )}
                   {draftRect && (
                     <polygon
                       points={draftRect.map(([x, y]) => `${x},${y}`).join(' ')}
@@ -278,6 +346,14 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                   )}
                 </svg>
               )}
+              {drawKind === 'poly' &&
+                draft.map(([x, y], i) => (
+                  <div
+                    key={i}
+                    className={'room-corner' + (i === 0 && canClose ? ' close' : '')}
+                    style={{ left: `${x}%`, top: `${y}%`, transform: `translate(-50%, -50%) scale(${1 / t.s})` }}
+                  />
+                ))}
               {roomMode &&
                 rooms?.map((r, i) => {
                   const [cx, cy] = contourCenter(r.contour)
@@ -367,22 +443,32 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
               </button>
             )}
             {roomMode && !drawing && mayEditRooms && (
-              <button
-                className="add-point"
-                onClick={() => {
-                  setRoomId(null)
-                  setDrawing(true)
-                }}
-              >
-                <Icon name="plus" />
-                Нарисовать прямоугольник
-              </button>
+              <div className="room-bar">
+                <button className="add-point" onClick={() => startDrawing('rect')}>
+                  Прямоугольник
+                </button>
+                <button className="add-point" onClick={() => startDrawing('poly')}>
+                  По углам
+                </button>
+              </div>
             )}
             {drawing && (
-              <button className="add-point" onClick={placeCorner} disabled={tooSmall} style={tooSmall ? { opacity: 0.5 } : undefined}>
-                <Icon name="check" />
-                {draft.length === 0 ? 'Поставить первый угол' : tooSmall ? 'Слишком маленькое' : 'Поставить второй угол'}
-              </button>
+              <div className="room-bar">
+                {drawKind === 'poly' && draft.length > 0 && (
+                  <button className="add-point light" onClick={() => setDraft(draft.slice(0, -1))}>
+                    Отменить угол
+                  </button>
+                )}
+                <button
+                  className="add-point"
+                  onClick={placeCorner}
+                  disabled={tooSmall || onLastCorner}
+                  style={tooSmall || onLastCorner ? { opacity: 0.5 } : undefined}
+                >
+                  <Icon name="check" />
+                  {placeLabel}
+                </button>
+              </div>
             )}
           </>
         )}
@@ -410,6 +496,9 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
     </div>
   )
 }
+
+/** Насколько близко (в пикселях экрана) прицел к первому углу, чтобы замкнуть контур. */
+const CLOSE_PX = 16
 
 /** Прямоугольник по двум противоположным углам, стороны параллельны краям листа. */
 function rectContour(a: [number, number], b: [number, number]): [number, number][] {

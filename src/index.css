@@ -1102,3 +1102,41 @@ html {
   background: #e03131;
   box-shadow: 0 0 0 1px #fff;
 }
+
+/* нижняя полоса режима «Помещения»: две кнопки рядом */
+.room-bar {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  display: flex;
+  gap: 8px;
+}
+.room-bar .add-point {
+  position: static;
+  flex: 1;
+  min-width: 0;
+  padding: 0 12px;
+}
+.room-bar .add-point.light {
+  flex: 0 0 auto;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+
+/* углы помещения, которое рисуется по углам */
+.room-corner {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #14171c;
+  box-shadow: 0 0 0 1.5px #fff;
+  pointer-events: none;
+}
+.room-corner.close {
+  width: 14px;
+  height: 14px;
+  background: #2f9e44;
+}
