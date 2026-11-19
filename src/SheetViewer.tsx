@@ -50,6 +50,22 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
   const drawing = drawKind !== null
   const [draft, setDraft] = useState<[number, number][]>([])
   const [roomId, setRoomId] = useState<string | null>(null)
+  // привязки (выравнивания, Р-51) можно выключить галочкой; выбор помнится на этом устройстве
+  const [snapOn, setSnapOn] = useState(() => {
+    try {
+      return localStorage.getItem('roomSnap') !== 'off'
+    } catch {
+      return true
+    }
+  })
+  function toggleSnap(on: boolean) {
+    setSnapOn(on)
+    try {
+      localStorage.setItem('roomSnap', on ? 'on' : 'off')
+    } catch {
+      // не сохранилось — не страшно
+    }
+  }
   const people = usePeople()
 
   // размер области под лист: от него зависит, каким лист будет «вписан в экран»
@@ -102,7 +118,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
       : null
   // выравнивания (шаг 20в): угол встанет в притянутую точку рядом с прицелом
   const snap =
-    drawing && rawAim && content && rooms
+    drawing && snapOn && rawAim && content && rooms
       ? snapPoint(rawAim, {
           kx: (content.w * t.s) / 100,
           ky: (content.h * t.s) / 100,
@@ -366,7 +382,8 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                         x2={b[0]}
                         y2={b[1]}
                         stroke="#2f9e44"
-                        strokeWidth={0.8}
+                        strokeWidth={0.5}
+                        strokeDasharray="3 3"
                         vectorEffect="non-scaling-stroke"
                       />
                     ))}
@@ -402,7 +419,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                         pointerEvents: 'none',
                         color: roomColor(i),
                         fontWeight: 700,
-                        fontSize: 14,
+                        fontSize: 17,
                         whiteSpace: 'nowrap',
                         textShadow: '0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff',
                       }}
@@ -484,6 +501,12 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                   По углам
                 </button>
               </div>
+            )}
+            {drawing && (
+              <label className="snap-toggle">
+                <input type="checkbox" checked={snapOn} onChange={e => toggleSnap(e.target.checked)} />
+                Привязки
+              </label>
             )}
             {drawing && (
               <div className="room-bar">

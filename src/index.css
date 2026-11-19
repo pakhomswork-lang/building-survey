@@ -1158,3 +1158,29 @@ html {
   background: #2f9e44;
   box-shadow: 0 0 0 1.5px #fff;
 }
+
+/* галочка «Привязки» при рисовании помещений */
+.snap-toggle {
+  position: absolute;
+  z-index: 2;
+  left: 16px;
+  bottom: calc(88px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px 0 10px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: 15px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  user-select: none;
+}
+.snap-toggle input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: #2f9e44;
+}
