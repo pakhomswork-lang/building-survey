@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useCallback, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { db, getMyIds, PHOTO_TYPES, type Photo } from '../db'
+import { db, getMyIds, PHOTO_TYPES, ROOM_NONE, type Photo, type Point, type Room } from '../db'
 import { countByType, plural, TYPE_KEYS } from '../format'
 import { PcFolderStatus } from '../PcFolderStatus'
 import { useProjectFolder } from '../pcFolder'
@@ -15,7 +15,7 @@ import { PcFilterBar } from './PcFilterBar'
 import { PcPhotoGrid, PcPhotoPreview, type GridSize } from './PcPhotoGrid'
 import { PcSheet } from './PcSheet'
 import { PcRoomPanel } from './PcRoomPanel'
-import { canEditRooms } from '../rooms'
+import { canEditRooms, pointRoomText, roomOfPoint, roomsOfProject, roomTitle, setPointRoom } from '../rooms'
 import { buildPhotoCsv, csvFileName, saveTextFile } from './exportPhotos'
 import { attachPdf, removePdf } from './sheetPdf'
 
@@ -30,14 +30,16 @@ type Mode = 'plan' | 'grid'
 export function PcProject({ projectId }: { projectId: string }) {
   useProjectFolder(projectId)
   const data = useLiveQuery(async () => {
-    const [project, sheets, points, photos] = await Promise.all([
+    const [project, sheets, points, photos, rooms] = await Promise.all([
       db.projects.get(projectId),
       db.sheets.where('projectId').equals(projectId).sortBy('order'),
       db.points.where('projectId').equals(projectId).sortBy('createdAt'),
       db.photos.where('projectId').equals(projectId).sortBy('takenAt'),
+      roomsOfProject(projectId),
     ])
     return {
       project,
+      rooms,
       sheets: sheets.filter(s => !s.deleted),
       points: points.filter(p => !p.deleted),
       photos: photos.filter(p => !p.deleted),
@@ -55,6 +57,22 @@ export function PcProject({ projectId }: { projectId: string }) {
   const [roomMode, setRoomMode] = useState(false)
   const [roomId, setRoomId] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
+  // контуры помещений при работе с точками и фото (шаг 22), помнятся на компьютере
+  const [showRooms, setShowRooms] = useState(() => {
+    try {
+      return localStorage.getItem('showRooms') === 'on'
+    } catch {
+      return false
+    }
+  })
+  function toggleShowRooms() {
+    setShowRooms(!showRooms)
+    try {
+      localStorage.setItem('showRooms', showRooms ? 'off' : 'on')
+    } catch {
+      // не сохранилось — не страшно
+    }
+  }
   const myIds = useLiveQuery(() => getMyIds(), [])
 
   // номер точки на листе — по порядку постановки, как на самом листе
@@ -64,6 +82,12 @@ export function PcProject({ projectId }: { projectId: string }) {
     return map
   }, [data])
   const sheetName = useMemo(() => new Map((data?.sheets ?? []).map(s => [s.id, s.name])), [data])
+  // помещение каждой точки: по контуру или выбранное вручную (Р-48)
+  const pointRoom = useMemo(() => {
+    const map = new Map<string, Room | null>()
+    for (const p of data?.points ?? []) map.set(p.id, roomOfPoint(p, data!.rooms.get(p.sheetId) ?? []))
+    return map
+  }, [data])
   const caption = useCallback(
     (p: Photo) => `${sheetName.get(p.sheetId) ?? 'Лист'}, т. ${pointNumber.get(p.pointId) ?? '?'}`,
     [sheetName, pointNumber],
@@ -82,6 +106,21 @@ export function PcProject({ projectId }: { projectId: string }) {
         valueOf: p => p.type,
         options: TYPE_KEYS.map(t => ({ value: t, label: PHOTO_TYPES[t], color: typeColor(t) })),
       },
+      ...(data.rooms.size
+        ? [
+            {
+              key: 'room',
+              label: 'Помещение',
+              valueOf: (p: Photo) => pointRoom.get(p.pointId)?.id ?? ROOM_NONE,
+              options: [
+                ...data.sheets.flatMap(s =>
+                  (data.rooms.get(s.id) ?? []).map(r => ({ value: r.id, label: roomTitle(r), title: s.name, sheetId: s.id })),
+                ),
+                { value: ROOM_NONE, label: 'Без помещения' },
+              ],
+            } as FilterDef,
+          ]
+        : []),
       {
         key: 'author',
         label: 'Автор',
@@ -91,7 +130,7 @@ export function PcProject({ projectId }: { projectId: string }) {
           .sort((a, b) => a.label.localeCompare(b.label)),
       },
     ]
-  }, [data, people])
+  }, [data, people, pointRoom])
 
   if (!data) return null
   if (!data.project || data.project.deleted) {
@@ -111,8 +150,12 @@ export function PcProject({ projectId }: { projectId: string }) {
       a.takenAt - b.takenAt,
   )
 
-  // на плане лист выбирают слева, поэтому отбор по листу там не показываем
-  const planDefs = defs.filter(d => d.key !== 'sheet')
+  // на плане лист выбирают слева, поэтому отбор по листу там не показываем,
+  // а в отборе по помещению остаются только помещения этого листа
+  const planSheet = chosenSheet && data.sheets.some(s => s.id === chosenSheet) ? chosenSheet : data.sheets[0]?.id
+  const planDefs = defs
+    .filter(d => d.key !== 'sheet')
+    .map(d => (d.key === 'room' ? { ...d, options: d.options.filter(o => !('sheetId' in o) || (o as { sheetId: string }).sheetId === planSheet) } : d))
   const shownDefs = mode === 'plan' ? planDefs : defs
   const activeDefs = shownDefs.filter(d => selection[d.key]?.length)
   const match = activeDefs.length ? (p: Photo) => matches(p, shownDefs, selection) : null
@@ -191,6 +234,11 @@ export function PcProject({ projectId }: { projectId: string }) {
           {mode === 'plan' && sheet && (
             <div className="pc-sheet-name">
               <b>{sheet.name}</b>
+              {data.rooms.has(sheet.id) && !roomMode && (
+                <button className={'chip' + (showRooms ? ' on' : '')} title="Показывать контуры помещений при работе с точками" onClick={toggleShowRooms}>
+                  Контуры
+                </button>
+              )}
               <button
                 className={'chip' + (roomMode ? ' on' : '')}
                 title="Показать помещения листа; рисовать и править их может создатель объекта"
@@ -235,6 +283,7 @@ export function PcProject({ projectId }: { projectId: string }) {
                 onRoomSelect={setRoomId}
                 canEditRooms={mayEditRooms}
                 editId={editId}
+                showRooms={showRooms}
                 onEditDone={() => {
                   setRoomId(editId)
                   setEditId(null)
@@ -273,6 +322,7 @@ export function PcProject({ projectId }: { projectId: string }) {
         ) : mode === 'plan' ? (
           selectedPoint && pointNumber.has(selectedPoint) ? (
             <PointPhotos
+              rooms={data.rooms.get(sheetId ?? '') ?? []}
               pointId={selectedPoint}
               number={pointNumber.get(selectedPoint)!}
               caption={caption}
@@ -355,12 +405,15 @@ function SheetThumb({ sheetId }: { sheetId: string }) {
 
 /** Фото выбранной точки. Подходящие под отборы — сверху, остальные бледнее ниже. */
 function PointPhotos({
+  rooms,
   pointId,
   number,
   caption,
   match,
   onClose,
 }: {
+  /** Помещения листа точки. */
+  rooms: Room[]
   pointId: string
   number: number
   caption: (p: Photo) => string
@@ -387,6 +440,7 @@ function PointPhotos({
         {people && <>, поставил: {people.nameOf(point.authorId)}</>}
       </div>
       {point.comment && <p className="pc-comment">{point.comment}</p>}
+      <PointRoomPc point={point} rooms={rooms} canEdit={!people || people.isMine(point.authorId)} />
       <div className="pc-muted" style={{ marginTop: 12 }}>
         {photos.length} фото
       </div>
@@ -405,5 +459,27 @@ function PointPhotos({
       </div>
       {openId && <PhotoView photos={ordered} photoId={openId} onChange={setOpenId} onClose={() => setOpenId(null)} caption={caption} />}
     </>
+  )
+}
+
+/** Помещение точки на компьютере (шаг 22): автор точки выбирает его из списка, остальные только видят. */
+function PointRoomPc({ point, rooms, canEdit }: { point: Point; rooms: Room[]; canEdit: boolean }) {
+  if (!rooms.length && !point.roomId) return null
+  const auto = roomOfPoint({ ...point, roomId: null }, rooms)
+  const value = point.roomId === ROOM_NONE ? ROOM_NONE : point.roomId && rooms.some(r => r.id === point.roomId) ? point.roomId : ''
+  if (!canEdit) return <div className="pc-muted pc-point-room">Помещение: {pointRoomText(point, rooms)}</div>
+  return (
+    <label className="pc-point-room">
+      <span className="pc-muted">Помещение</span>
+      <select className="field" value={value} onChange={e => setPointRoom(point.id, e.target.value || null)}>
+        <option value="">По контуру: {auto ? roomTitle(auto) : 'без помещения'}</option>
+        {rooms.map(r => (
+          <option key={r.id} value={r.id}>
+            {roomTitle(r)}
+          </option>
+        ))}
+        <option value={ROOM_NONE}>Без помещения</option>
+      </select>
+    </label>
   )
 }

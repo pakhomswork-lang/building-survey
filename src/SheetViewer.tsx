@@ -75,6 +75,23 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
       // не сохранилось — не страшно
     }
   }
+  // контуры помещений при обычной работе с точками (шаг 22): включаются кнопкой, помнятся на устройстве
+  const [showRooms, setShowRooms] = useState(() => {
+    try {
+      return localStorage.getItem('showRooms') === 'on'
+    } catch {
+      return false
+    }
+  })
+  function toggleShowRooms() {
+    setShowRooms(!showRooms)
+    try {
+      localStorage.setItem('showRooms', showRooms ? 'off' : 'on')
+    } catch {
+      // не сохранилось — не страшно
+    }
+  }
+  const roomsVisible = roomMode || showRooms
   const people = usePeople()
 
   // размер области под лист: от него зависит, каким лист будет «вписан в экран»
@@ -431,7 +448,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
             >
               <img src={url} alt="" draggable={false} style={{ width: '100%', height: '100%', display: 'block', pointerEvents: 'none', userSelect: 'none' }} />
               {/* помещения видны только в режиме «Помещения», чтобы не мешать съёмке (Р-49) */}
-              {roomMode && (
+              {roomsVisible && (
                 <svg
                   className="room-layer"
                   viewBox="0 0 100 100"
@@ -533,7 +550,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                   +
                 </div>
               ))}
-              {roomMode &&
+              {roomsVisible &&
                 rooms?.map((r, i) => {
                   const [cx, cy] = contourCenter(r.id === editId ? liveContour : r.contour)
                   return (
@@ -603,9 +620,16 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
         {!selected && !adding && (
           <>
             {!roomMode && (mayEditRooms || !!rooms?.length) && (
-              <button className="chip room-mode-btn" onClick={() => setRoomMode(true)}>
-                Помещения{rooms?.length ? <em>{rooms.length}</em> : null}
-              </button>
+              <div className="room-mode-btns">
+                <button className="chip" onClick={() => setRoomMode(true)}>
+                  Помещения{rooms?.length ? <em>{rooms.length}</em> : null}
+                </button>
+                {!!rooms?.length && (
+                  <button className={'chip' + (showRooms ? ' on' : '')} aria-pressed={showRooms} onClick={toggleShowRooms}>
+                    Контуры
+                  </button>
+                )}
+              </div>
             )}
             <div className="zoom-btns">
               <button className="icon-btn" aria-label="Приблизить" onClick={() => zoomBy(1.5)}>

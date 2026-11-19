@@ -649,3 +649,17 @@
 .pc-danger {
   color: #c92a2a;
 }
+
+/* помещение точки (шаг 22) */
+.pc-point-room {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 14px;
+}
+.pc-point-room select {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+}

@@ -42,6 +42,7 @@ export function PcSheet({
   canEditRooms = false,
   editId = null,
   onEditDone = () => {},
+  showRooms = false,
 }: {
   sheetId: string
   /** Отбор фото: на листе остаются точки, где есть подходящие фото. null — все точки. */
@@ -58,6 +59,8 @@ export function PcSheet({
   editId?: string | null
   /** Правка контура закончена (сохранили или отменили). */
   onEditDone?: () => void
+  /** Показывать контуры помещений и вне режима «Помещения» (шаг 22). */
+  showRooms?: boolean
 }) {
   const image = useLiveQuery(() => db.sheetImages.get(sheetId), [sheetId])
   const sheet = useLiveQuery(() => db.sheets.get(sheetId), [sheetId])
@@ -463,7 +466,7 @@ export function PcSheet({
         <div style={{ position: 'absolute', left: view.x, top: view.y, width: w, height: h, background: '#fff' }}>
           <img src={url} alt="" draggable={false} style={{ width: '100%', height: '100%', display: 'block' }} />
           {pdf && vp && <PdfLayer page={pdf} x={view.x} y={view.y} w={w} h={h} vpW={vp.w} vpH={vp.h} />}
-          {roomMode && (
+          {(roomMode || showRooms) && (
             <svg
               viewBox="0 0 100 100"
               preserveAspectRatio="none"
@@ -525,7 +528,7 @@ export function PcSheet({
               +
             </div>
           ))}
-          {roomMode &&
+          {(roomMode || showRooms) &&
             rooms?.map((r, i) => {
               const [cx, cy] = contourCenter(r.id === editId ? liveContour : r.contour)
               return (

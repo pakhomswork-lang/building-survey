@@ -1059,13 +1059,21 @@ html {
 
 /* ——— помещения (Р-49) ——— */
 
-.room-mode-btn {
+.room-mode-btns {
   position: absolute;
   z-index: 2;
   left: 12px;
   top: 12px;
+  display: flex;
+  gap: 8px;
+}
+.room-mode-btns .chip {
   background: var(--surface);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+.room-mode-btns .chip.on {
+  background: var(--text);
+  color: #fff;
 }
 
 /* прицел в центре экрана: перекрестье с просветом и точкой в середине */
@@ -1207,4 +1215,29 @@ html {
   font-weight: 600;
   pointer-events: none;
   opacity: 0.85;
+}
+
+/* помещение точки (шаг 22) */
+.point-room {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+}
+button.point-room {
+  cursor: pointer;
+}
+.point-room b {
+  color: var(--text);
+  font-weight: 500;
+}
+.list .item.on {
+  background: var(--raised, rgba(20, 23, 28, 0.06));
 }

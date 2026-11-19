@@ -151,3 +151,26 @@ export function rectContour(a: [number, number], b: [number, number]): [number, 
 }
 
 export const midpoint = (a: [number, number], b: [number, number]): [number, number] => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+
+/**
+ * Ручной выбор помещения у точки (Р-48): id помещения, ROOM_NONE — «без помещения»,
+ * null — определять по контуру. Меняет только автор точки (Р-38).
+ */
+export async function setPointRoom(pointId: string, roomId: string | null) {
+  await db.points.update(pointId, { roomId, updatedAt: Date.now() })
+}
+
+/** Живые помещения объекта, по листам. */
+export async function roomsOfProject(projectId: string): Promise<Map<string, Room[]>> {
+  const all = (await db.rooms.where('projectId').equals(projectId).sortBy('createdAt')).filter(r => !r.deleted)
+  const bySheet = new Map<string, Room[]>()
+  for (const r of all) bySheet.set(r.sheetId, [...(bySheet.get(r.sheetId) ?? []), r])
+  return bySheet
+}
+
+/** Подпись помещения точки: «1 Коридор», «без помещения»; вручную — с пометкой. */
+export function pointRoomText(point: Point, rooms: Room[]): string {
+  const room = roomOfPoint(point, rooms)
+  const manual = point.roomId === ROOM_NONE || (!!point.roomId && rooms.some(r => r.id === point.roomId))
+  return (room ? roomTitle(room) : 'без помещения') + (manual ? ' (выбрано вручную)' : '')
+}

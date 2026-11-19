@@ -2,7 +2,8 @@
 // Одна таблица CSV: строка на фото — где лежит файл, где снято (лист, точка, место на листе),
 // тип, кто и когда снимал, комментарий точки. Выгружаются фото, отобранные на экране «Все фото».
 
-import { db, getMyIds, getUserProfile, PHOTO_TYPES, type Photo } from '../db'
+import { db, getMyIds, getUserProfile, PHOTO_TYPES, ROOM_NONE, type Photo } from '../db'
+import { roomOfPoint, roomsOfProject } from '../rooms'
 import { findInFolder } from '../pcFolder'
 
 interface Person {
@@ -38,11 +39,12 @@ function dateTime(t: number) {
 
 /** Таблица CSV для Excel (разделитель «;», UTF-8 с меткой — тогда Excel не портит русские буквы). */
 export async function buildPhotoCsv(projectId: string, photos: Photo[]): Promise<string> {
-  const [project, sheets, points, who] = await Promise.all([
+  const [project, sheets, points, who, rooms] = await Promise.all([
     db.projects.get(projectId),
     db.sheets.where('projectId').equals(projectId).sortBy('order'),
     db.points.where('projectId').equals(projectId).sortBy('createdAt'),
     peopleMap(),
+    roomsOfProject(projectId),
   ])
   const liveSheets = sheets.filter(s => !s.deleted)
   const livePoints = points.filter(p => !p.deleted)
@@ -59,6 +61,9 @@ export async function buildPhotoCsv(projectId: string, photos: Photo[]): Promise
     'Объект',
     'Лист',
     'Точка',
+    'Помещение, №',
+    'Помещение, название',
+    'Помещение выбрано вручную',
     'Место на листе, % слева',
     'Место на листе, % сверху',
     'Тип фото',
@@ -70,6 +75,8 @@ export async function buildPhotoCsv(projectId: string, photos: Photo[]): Promise
   const rows = photos.map((p, i) => {
     const point = pointById.get(p.pointId)
     const author = who(p.authorId)
+    const room = point ? roomOfPoint(point, rooms.get(point.sheetId) ?? []) : null
+    const manual = !!point?.roomId && (point.roomId === ROOM_NONE || room?.id === point.roomId)
     return [
       i + 1,
       p.fileName,
@@ -77,6 +84,9 @@ export async function buildPhotoCsv(projectId: string, photos: Photo[]): Promise
       project?.name ?? '',
       sheetName.get(p.sheetId) ?? '',
       pointNo.get(p.pointId) ?? '',
+      room ? room.number : 'без помещения',
+      room?.name ?? '',
+      manual ? 'да' : '',
       point ? point.x.toFixed(1) : '',
       point ? point.y.toFixed(1) : '',
       PHOTO_TYPES[p.type],

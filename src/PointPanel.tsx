@@ -6,6 +6,7 @@ import { Icon } from './Icon'
 import { countByType, TYPE_KEYS } from './format'
 import { PhotoThumb } from './PhotoThumb'
 import { PhotoView } from './PhotoView'
+import { PointRoom } from './PointRoom'
 import { usePeople } from './people'
 import { getFolder, hasFolderPermission } from './photoFolder'
 import { savePhoto } from './photos'
@@ -112,6 +113,7 @@ export function PointPanel({
           {!mine && people && <>, автор: {people.nameOf(point.authorId)}</>}
         </div>
         {point.comment && <p style={{ margin: '8px 0 0', fontSize: 15, color: 'var(--text-2)' }}>{point.comment}</p>}
+        <PointRoom point={point} canEdit={mine} />
 
         {error && <p style={{ color: 'var(--danger)', fontSize: 14 }}>{error}</p>}
 
