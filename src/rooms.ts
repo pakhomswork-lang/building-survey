@@ -105,3 +105,30 @@ export function roomOfPoint(point: Point, rooms: Room[]): Room | null {
   }
   return best
 }
+
+/** Цвета помещений (Р-49): по порядку на листе, чтобы соседние отличались. */
+const ROOM_COLORS = ['#e8590c', '#1c7ed6', '#2f9e44', '#c2255c', '#7048e8', '#f08c00', '#0c8599', '#e03131', '#5c940d', '#ae3ec9']
+
+export function roomColor(index: number): string {
+  return ROOM_COLORS[index % ROOM_COLORS.length]
+}
+
+/** Помещение под нажатием: из вложенных — меньшее. */
+export function roomAt(x: number, y: number, rooms: Room[]): Room | null {
+  let best: Room | null = null
+  let bestArea = Infinity
+  for (const r of rooms) {
+    if (!insideContour(x, y, r.contour)) continue
+    const area = contourArea(r.contour)
+    if (area < bestArea) {
+      best = r
+      bestArea = area
+    }
+  }
+  return best
+}
+
+/** Подпись помещения: «1 Кухня», «А1», «Кухня» или «без номера». */
+export function roomTitle(r: Room): string {
+  return [r.number, r.name].filter(Boolean).join(' ') || 'Без номера'
+}

@@ -27,9 +27,15 @@ export function usePanZoom(
   content: { w: number; h: number } | null,
   maxScale: number,
   onTap: (tap: Tap) => void,
+  /**
+   * Свободный сдвиг: под середину экрана можно подвести любую точку листа, даже угол.
+   * Нужен для прицела в центре экрана при рисовании помещений (Р-49).
+   */
+  free = false,
 ) {
   const [t, setT] = useState<Transform>({ x: 0, y: 0, s: 1 })
   const tRef = useRef(t)
+  const freeRef = useRef(free)
   const pointers = useRef(new Map<number, { x: number; y: number }>())
   const tap = useRef<{ x: number; y: number; time: number; target: EventTarget | null; valid: boolean } | null>(null)
 
@@ -48,6 +54,11 @@ export function usePanZoom(
       const s = Math.min(maxScale, Math.max(1, next.s))
       const cw = contentW * s
       const ch = contentH * s
+      if (freeRef.current) {
+        const x = Math.min(vw / 2, Math.max(vw / 2 - cw, next.x))
+        const y = Math.min(vh / 2, Math.max(vh / 2 - ch, next.y))
+        return { x, y, s }
+      }
       const x = cw <= vw ? (vw - cw) / 2 : Math.min(0, Math.max(vw - cw, next.x))
       const y = ch <= vh ? (vh - ch) / 2 : Math.min(0, Math.max(vh - ch, next.y))
       return { x, y, s }
@@ -67,6 +78,13 @@ export function usePanZoom(
   useEffect(() => {
     apply({ x: 0, y: 0, s: 1 })
   }, [apply])
+
+  // свободный сдвиг выключили — возвращаем лист в обычные границы, масштаб тот же
+  useEffect(() => {
+    if (freeRef.current === free) return
+    freeRef.current = free
+    apply(tRef.current)
+  }, [free, apply])
 
   // область под лист изменилась (например, выбрали точку и план стал ниже):
   // оставляем масштаб, но заново ставим лист в границы области

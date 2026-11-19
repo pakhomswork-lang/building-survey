@@ -6,7 +6,8 @@ import { Icon } from './Icon'
 import { useProjectFolder } from './pcFolder'
 import { usePeople } from './people'
 import { PointPanel } from './PointPanel'
-import { canEditRooms, contourCenter, createRoom, roomsOfSheet } from './rooms'
+import { RoomPanel } from './RoomPanel'
+import { canEditRooms, contourCenter, createRoom, roomAt, roomColor, roomsOfSheet, roomTitle } from './rooms'
 import { markerSize, ringBackground } from './markers'
 import { typeColor } from './typeColor'
 import { usePanZoom, type Tap } from './usePanZoom'
@@ -41,6 +42,11 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
   const [photoType, setPhotoType] = useState<PhotoType>('general')
   const [filter, setFilter] = useState<'all' | PhotoType>('all')
   const [sheetMenuOpen, setSheetMenuOpen] = useState(false)
+  // режим «Помещения» (Р-46, Р-49): видны все помещения; рисование прицелом в центре экрана
+  const [roomMode, setRoomMode] = useState(false)
+  const [drawing, setDrawing] = useState(false)
+  const [draft, setDraft] = useState<[number, number][]>([])
+  const [roomId, setRoomId] = useState<string | null>(null)
   const people = usePeople()
 
   // размер области под лист: от него зависит, каким лист будет «вписан в экран»
@@ -63,6 +69,12 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
   const maxScale = fit ? Math.max(4, 2 / fit) : 4
 
   async function handleTap(tap: Tap) {
+    if (roomMode) {
+      // при рисовании угол ставится кнопкой, нажатие по листу ничего не делает
+      if (drawing || !rooms) return
+      setRoomId(roomAt(tap.px, tap.py, rooms)?.id ?? null)
+      return
+    }
     if (adding) {
       if (!sheet || tap.px < 0 || tap.px > 100 || tap.py < 0 || tap.py > 100) return
       const point = await createPoint(sheet.projectId, sheet.id, tap.px, tap.py)
@@ -75,7 +87,40 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
     setSelectedId(hit?.getAttribute('data-point-id') ?? null)
   }
 
-  const { t, zoomBy, handlers } = usePanZoom(viewportRef, content, maxScale, handleTap)
+  const { t, zoomBy, handlers } = usePanZoom(viewportRef, content, maxScale, handleTap, drawing)
+
+  // где на листе сейчас прицел (середина экрана), в процентах листа
+  const aim: [number, number] | null =
+    vp && content
+      ? [
+          Math.min(100, Math.max(0, ((vp.w / 2 - t.x) / t.s / content.w) * 100)),
+          Math.min(100, Math.max(0, ((vp.h / 2 - t.y) / t.s / content.h) * 100)),
+        ]
+      : null
+  // прямоугольник, который сейчас рисуется: от первого угла до прицела
+  const draftRect = drawing && draft.length === 1 && aim ? rectContour(draft[0], aim) : null
+  const tooSmall = !!draftRect && !!aim && (Math.abs(aim[0] - draft[0][0]) < 0.5 || Math.abs(aim[1] - draft[0][1]) < 0.5)
+
+  async function placeCorner() {
+    if (!aim || !sheet) return
+    if (draft.length === 0) {
+      setDraft([aim])
+      return
+    }
+    if (tooSmall) return
+    const room = await createRoom(sheet.projectId, sheet.id, rectContour(draft[0], aim))
+    setDrawing(false)
+    setDraft([])
+    setRoomId(room.id)
+  }
+
+  function stopDrawing() {
+    setDrawing(false)
+    setDraft([])
+  }
+
+  const openRoomIndex = rooms?.findIndex(r => r.id === roomId) ?? -1
+  const openRoom = openRoomIndex >= 0 ? rooms![openRoomIndex] : null
 
   const selectedIndex = points?.findIndex(p => p.id === selectedId) ?? -1
   const selected = selectedIndex >= 0 ? points![selectedIndex] : null
@@ -119,7 +164,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
             </span>
           </button>
         </div>
-        {!selected && (
+        {!selected && !roomMode && (
           <div className="chips">
             <button className={'chip' + (filter === 'all' ? ' on' : '')} onClick={() => setFilter('all')}>
               Все <em>{photos?.length ?? 0}</em>
@@ -158,6 +203,22 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
 
       {/* подсказка и кнопки лежат поверх листа, чтобы не менять его размер и не сбрасывать приближение */}
       <div className="plan-area">
+        {roomMode && (
+          <div className="hint-bar">
+            <span style={{ flex: 1 }}>
+              {!drawing
+                ? `Помещения: ${rooms?.length ?? 0}` + (rooms?.length ? '. Нажмите на помещение, чтобы открыть' : '')
+                : draft.length === 0
+                  ? 'Двигайте лист: наведите прицел на первый угол'
+                  : 'Наведите прицел на противоположный угол'}
+            </span>
+            {drawing ? (
+              <button onClick={stopDrawing}>Отмена</button>
+            ) : (
+              <button onClick={() => setRoomMode(false)}>Выйти</button>
+            )}
+          </div>
+        )}
         {adding && (
           <div className="hint-bar">
             <span style={{ flex: 1 }}>Нажмите на план там, где поставить точку</span>
@@ -168,7 +229,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
         <div
           ref={viewportRef}
           {...handlers}
-          style={{ position: 'absolute', inset: 0, overflow: 'hidden', touchAction: 'none', cursor: adding ? 'crosshair' : 'grab' }}
+          style={{ position: 'absolute', inset: 0, overflow: 'hidden', touchAction: 'none', cursor: adding ? 'crosshair' : 'grab', background: drawing ? '#e9ecef' : undefined }}
         >
           {content && url && (
             <div
@@ -184,51 +245,64 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
               }}
             >
               <img src={url} alt="" draggable={false} style={{ width: '100%', height: '100%', display: 'block', pointerEvents: 'none', userSelect: 'none' }} />
-              {/* контуры помещений (Р-46); рисование — шаг 20 */}
-              {!!rooms?.length && (
+              {/* помещения видны только в режиме «Помещения», чтобы не мешать съёмке (Р-49) */}
+              {roomMode && (
                 <svg
                   className="room-layer"
                   viewBox="0 0 100 100"
                   preserveAspectRatio="none"
                   style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }}
                 >
-                  {rooms.map(r => (
+                  {rooms?.map((r, i) => (
                     <polygon
                       key={r.id}
                       data-room-id={r.id}
                       points={r.contour.map(([x, y]) => `${x},${y}`).join(' ')}
-                      fill="rgba(31, 111, 235, 0.10)"
-                      stroke="#1f6feb"
-                      strokeWidth={2}
+                      fill={roomColor(i)}
+                      fillOpacity={r.id === roomId ? 0.3 : 0.12}
+                      stroke={roomColor(i)}
+                      strokeWidth={r.id === roomId ? 3 : 2}
                       vectorEffect="non-scaling-stroke"
                       strokeLinejoin="round"
                     />
                   ))}
+                  {draftRect && (
+                    <polygon
+                      points={draftRect.map(([x, y]) => `${x},${y}`).join(' ')}
+                      fill="#14171c"
+                      fillOpacity={0.08}
+                      stroke="#14171c"
+                      strokeWidth={2}
+                      strokeDasharray="6 4"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  )}
                 </svg>
               )}
-              {rooms?.map(r => {
-                const [cx, cy] = contourCenter(r.contour)
-                return (
-                  <div
-                    key={r.id}
-                    className="room-label"
-                    style={{
-                      position: 'absolute',
-                      left: `${cx}%`,
-                      top: `${cy}%`,
-                      transform: `translate(-50%, -50%) scale(${1 / t.s})`,
-                      pointerEvents: 'none',
-                      color: '#1f6feb',
-                      fontWeight: 700,
-                      fontSize: 14,
-                      whiteSpace: 'nowrap',
-                      textShadow: '0 0 3px #fff, 0 0 3px #fff',
-                    }}
-                  >
-                    {[r.number, r.name].filter(Boolean).join(' ')}
-                  </div>
-                )
-              })}
+              {roomMode &&
+                rooms?.map((r, i) => {
+                  const [cx, cy] = contourCenter(r.contour)
+                  return (
+                    <div
+                      key={r.id}
+                      className="room-label"
+                      style={{
+                        position: 'absolute',
+                        left: `${cx}%`,
+                        top: `${cy}%`,
+                        transform: `translate(-50%, -50%) scale(${1 / t.s})`,
+                        pointerEvents: 'none',
+                        color: roomColor(i),
+                        fontWeight: 700,
+                        fontSize: 14,
+                        whiteSpace: 'nowrap',
+                        textShadow: '0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff',
+                      }}
+                    >
+                      {roomTitle(r)}
+                    </div>
+                  )
+                })}
               {shownPoints.map(({ p, n }) => {
                 // чужая точка: метка бледнее, под ней код автора (Р-38)
                 const other = !!people && !people.isMine(p.authorId)
@@ -238,6 +312,8 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                   data-point-id={p.id}
                   className={'marker' + (p.id === selectedId ? ' on' : '') + (other ? ' other' : '')}
                   style={{
+                    // в режиме «Помещения» точки бледные и не нажимаются
+                    ...(roomMode ? { opacity: 0.35, pointerEvents: 'none' as const } : null),
                     left: `${p.x}%`,
                     top: `${p.y}%`,
                     width: size,
@@ -262,22 +338,19 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
           )}
         </div>
 
+        {/* прицел в центре экрана (Р-49) */}
+        {drawing && (
+          <div className="room-aim" aria-hidden="true">
+            <i />
+            <i />
+          </div>
+        )}
+
         {!selected && !adding && (
           <>
-            {/* ВРЕМЕННО (шаг 19б): проверка помещений до режима рисования. Убрать в шаге 20. */}
-            {mayEditRooms && sheet && (
-              <button
-                className="chip"
-                style={{ position: 'absolute', left: 12, top: 12, zIndex: 3, background: '#fff' }}
-                onClick={() => {
-                  // прямоугольник в середине листа, каждый следующий чуть ниже и правее
-                  const k = (rooms?.length ?? 0) % 5
-                  const x0 = 20 + k * 6
-                  const y0 = 20 + k * 6
-                  createRoom(sheet.projectId, sheet.id, [[x0, y0], [x0 + 30, y0], [x0 + 30, y0 + 20], [x0, y0 + 20]])
-                }}
-              >
-                Тест: добавить помещение
+            {!roomMode && (mayEditRooms || !!rooms?.length) && (
+              <button className="chip room-mode-btn" onClick={() => setRoomMode(true)}>
+                Помещения{rooms?.length ? <em>{rooms.length}</em> : null}
               </button>
             )}
             <div className="zoom-btns">
@@ -288,13 +361,43 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                 <Icon name="minus" />
               </button>
             </div>
-            <button className="add-point" onClick={() => setAdding(true)}>
-              <Icon name="pin" />
-              Поставить точку
-            </button>
+            {!roomMode && (
+              <button className="add-point" onClick={() => setAdding(true)}>
+                <Icon name="pin" />
+                Поставить точку
+              </button>
+            )}
+            {roomMode && !drawing && mayEditRooms && (
+              <button
+                className="add-point"
+                onClick={() => {
+                  setRoomId(null)
+                  setDrawing(true)
+                }}
+              >
+                <Icon name="plus" />
+                Нарисовать прямоугольник
+              </button>
+            )}
+            {drawing && (
+              <button className="add-point" onClick={placeCorner} disabled={tooSmall} style={tooSmall ? { opacity: 0.5 } : undefined}>
+                <Icon name="check" />
+                {draft.length === 0 ? 'Поставить первый угол' : tooSmall ? 'Слишком маленькое' : 'Поставить второй угол'}
+              </button>
+            )}
           </>
         )}
       </div>
+
+      {openRoom && (
+        <RoomPanel
+          key={openRoom.id}
+          room={openRoom}
+          color={roomColor(openRoomIndex)}
+          canEdit={mayEditRooms}
+          onClose={() => setRoomId(null)}
+        />
+      )}
 
       {selected && (
         <PointPanel
@@ -307,4 +410,18 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
       )}
     </div>
   )
+}
+
+/** Прямоугольник по двум противоположным углам, стороны параллельны краям листа. */
+function rectContour(a: [number, number], b: [number, number]): [number, number][] {
+  const x0 = Math.min(a[0], b[0])
+  const x1 = Math.max(a[0], b[0])
+  const y0 = Math.min(a[1], b[1])
+  const y1 = Math.max(a[1], b[1])
+  return [
+    [x0, y0],
+    [x1, y0],
+    [x1, y1],
+    [x0, y1],
+  ]
 }

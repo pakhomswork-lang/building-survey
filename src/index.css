@@ -1056,3 +1056,49 @@ html {
   font-size: 14px;
   color: var(--text-muted);
 }
+
+/* ——— помещения (Р-49) ——— */
+
+.room-mode-btn {
+  position: absolute;
+  z-index: 2;
+  left: 12px;
+  top: 12px;
+  background: var(--surface);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* прицел в центре экрана: перекрестье с просветом и точкой в середине */
+.room-aim {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 50%;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  pointer-events: none;
+}
+.room-aim i {
+  position: absolute;
+  inset: 0;
+}
+.room-aim i:first-child {
+  background:
+    linear-gradient(#e03131, #e03131) center top / 2px 16px no-repeat,
+    linear-gradient(#e03131, #e03131) center bottom / 2px 16px no-repeat,
+    linear-gradient(#e03131, #e03131) left center / 16px 2px no-repeat,
+    linear-gradient(#e03131, #e03131) right center / 16px 2px no-repeat;
+  filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff);
+}
+.room-aim i:last-child {
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: #e03131;
+  box-shadow: 0 0 0 1px #fff;
+}
