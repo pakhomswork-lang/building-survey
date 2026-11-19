@@ -9,7 +9,7 @@
 // остаётся более поздняя правка (Р-14).
 
 import type { EntityTable } from 'dexie'
-import { db, type Photo, type PhotoType, type Point, type Project, type Sheet, type SyncFields } from './db'
+import { db, type Photo, type PhotoType, type Point, type Project, type Room, type Sheet, type SyncFields } from './db'
 import { sheetImageFromBlob } from './sheetImport'
 import { refreshPeople } from './people'
 import { supabase } from './supabase'
@@ -71,6 +71,15 @@ const toPoint = (r: Row): Point => ({
   y: Number(r.y),
   comment: String(r.comment ?? ''),
   roomId: (r.room_id as string | null) ?? null,
+})
+const toRoom = (r: Row): Room => ({
+  ...common(r),
+  projectId: String(r.project_id),
+  sheetId: String(r.sheet_id),
+  contour: r.contour as Room['contour'],
+  number: String(r.number ?? ''),
+  name: String(r.name ?? ''),
+  comment: String(r.comment ?? ''),
 })
 const toPhoto = (r: Row): Photo => ({
   ...common(r),
@@ -146,11 +155,13 @@ async function pullOnce(userId: string) {
 
   const projects = await fetchChanged('projects')
   const sheets = await fetchChanged('sheets')
+  const rooms = await fetchChanged('rooms')
   const points = await fetchChanged('points')
   const photos = await fetchChanged('photos')
 
   await applyRows(db.projects, projects.rows, toProject)
   const changedSheets = await applyRows(db.sheets, sheets.rows, toSheet)
+  await applyRows(db.rooms, rooms.rows, toRoom)
   await applyRows(db.points, points.rows, toPoint)
   const changedPhotos = await applyRows(db.photos, photos.rows, toPhoto)
 
@@ -161,6 +172,7 @@ async function pullOnce(userId: string) {
   // запоминаем, докуда забрали, только после того, как всё легло в базу
   await saveCursor('projects', projects.cursor)
   await saveCursor('sheets', sheets.cursor)
+  await saveCursor('rooms', rooms.cursor)
   await saveCursor('points', points.cursor)
   await saveCursor('photos', photos.cursor)
 
@@ -194,7 +206,7 @@ export async function pullAll() {
   }
 }
 
-const TABLES = ['projects', 'sheets', 'points', 'photos']
+const TABLES = ['projects', 'sheets', 'rooms', 'points', 'photos']
 
 /**
  * Получает изменения сам: при входе и запуске, сразу после изменения на сервере

@@ -44,8 +44,26 @@ export interface Point extends SyncFields {
   x: number
   y: number
   comment: string
-  /** Помещение. На этапе 1 не назначаем (Р-10). */
+  /**
+   * Помещение, выбранное вручную (Р-48): id помещения или ROOM_NONE («без помещения»).
+   * null — помещение определяется по контурам на листе (src/rooms.ts).
+   */
   roomId: string | null
+}
+
+/** Ручной выбор у точки «без помещения» (например, снято с улицы). */
+export const ROOM_NONE = 'none'
+
+/** Помещение на листе (Р-46, Р-48). В общем объекте рисует и правит только создатель объекта. */
+export interface Room extends SyncFields {
+  projectId: string
+  sheetId: string
+  /** Углы контура по порядку, [x, y] в процентах от ширины и высоты листа (0–100). Форма любая. */
+  contour: [number, number][]
+  /** Номер текстом: «1», «А1». Может быть пустым. */
+  number: string
+  name: string
+  comment: string
 }
 
 export const PHOTO_TYPES = {
@@ -128,6 +146,7 @@ export const db = new Dexie('building-survey') as Dexie & {
   folders: EntityTable<FolderRecord, 'key'>
   folderThumbs: EntityTable<FolderThumb, 'fileName'>
   sheetPdfs: EntityTable<SheetPdf, 'sheetId'>
+  rooms: EntityTable<Room, 'id'>
 }
 
 // Здесь перечислены только поля, по которым ищем. Остальные поля хранятся и так.
@@ -154,6 +173,11 @@ db.version(3).stores({
 // v4: исходные PDF листов на компьютере (Р-42)
 db.version(4).stores({
   sheetPdfs: 'sheetId',
+})
+
+// v5: помещения на листах (Р-46, Р-48)
+db.version(5).stores({
+  rooms: 'id, projectId, sheetId, updatedAt',
 })
 
 /** id пользователя этого устройства. Создаётся один раз при первом запуске. */
@@ -213,10 +237,10 @@ export async function newRecordFields(): Promise<SyncFields> {
 export async function adoptDeviceRecords(projectId: string, accountId: string) {
   const deviceId = await getUserId()
   if (deviceId === accountId) return
-  await db.transaction('rw', [db.projects, db.sheets, db.points, db.photos], async () => {
+  await db.transaction('rw', [db.projects, db.sheets, db.points, db.photos, db.rooms], async () => {
     const project = await db.projects.get(projectId)
     if (project?.authorId === deviceId) await db.projects.update(projectId, { authorId: accountId })
-    for (const table of [db.sheets, db.points, db.photos] as const) {
+    for (const table of [db.sheets, db.points, db.photos, db.rooms] as const) {
       await (table as typeof db.sheets)
         .where('projectId')
         .equals(projectId)
@@ -288,18 +312,24 @@ export async function deletePoint(pointId: string) {
 }
 
 export async function deleteSheet(sheetId: string) {
-  await db.transaction('rw', [db.sheets, db.sheetImages, db.points, db.photos, db.photoFiles], async () => {
+  await db.transaction('rw', [db.sheets, db.sheetImages, db.points, db.photos, db.photoFiles, db.rooms], async () => {
     await db.sheets.update(sheetId, deletedNow())
     await db.sheetImages.delete(sheetId)
     const points = await db.points.where('sheetId').equals(sheetId).primaryKeys()
     await db.points.bulkUpdate(points.map(key => ({ key, changes: deletedNow() })))
+    // помещения листа уходят вместе с ним (на сервере их удалит только создатель объекта —
+    // у остальных удаление останется в телефоне, лист всё равно удалён)
+    const rooms = await db.rooms.where('sheetId').equals(sheetId).primaryKeys()
+    await db.rooms.bulkUpdate(rooms.map(key => ({ key, changes: deletedNow() })))
     await deletePhotosWhere('sheetId', sheetId)
   })
 }
 
 export async function deleteProject(projectId: string) {
-  await db.transaction('rw', [db.projects, db.sheets, db.sheetImages, db.points, db.photos, db.photoFiles], async () => {
+  await db.transaction('rw', [db.projects, db.sheets, db.sheetImages, db.points, db.photos, db.photoFiles, db.rooms], async () => {
     await db.projects.update(projectId, deletedNow())
+    const rooms = await db.rooms.where('projectId').equals(projectId).primaryKeys()
+    await db.rooms.bulkUpdate(rooms.map(key => ({ key, changes: deletedNow() })))
     const sheets = await db.sheets.where('projectId').equals(projectId).primaryKeys()
     await db.sheets.bulkUpdate(sheets.map(key => ({ key, changes: deletedNow() })))
     await db.sheetImages.bulkDelete(sheets)

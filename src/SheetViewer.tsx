@@ -1,11 +1,12 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { createPoint, db, PHOTO_TYPES, type PhotoType } from './db'
+import { createPoint, db, getMyIds, PHOTO_TYPES, type PhotoType } from './db'
 import { plural, TYPE_KEYS } from './format'
 import { Icon } from './Icon'
 import { useProjectFolder } from './pcFolder'
 import { usePeople } from './people'
 import { PointPanel } from './PointPanel'
+import { canEditRooms, contourCenter, createRoom, roomsOfSheet } from './rooms'
 import { markerSize, ringBackground } from './markers'
 import { typeColor } from './typeColor'
 import { usePanZoom, type Tap } from './usePanZoom'
@@ -30,6 +31,9 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
     const all = await db.photos.where('sheetId').equals(sheetId).toArray()
     return all.filter(p => !p.deleted)
   }, [sheetId])
+  const rooms = useLiveQuery(() => roomsOfSheet(sheetId), [sheetId])
+  const myIds = useLiveQuery(() => getMyIds(), [])
+  const mayEditRooms = canEditRooms(project, myIds)
   const url = useObjectUrl(image?.blob)
 
   const [adding, setAdding] = useState(false)
@@ -180,6 +184,51 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
               }}
             >
               <img src={url} alt="" draggable={false} style={{ width: '100%', height: '100%', display: 'block', pointerEvents: 'none', userSelect: 'none' }} />
+              {/* контуры помещений (Р-46); рисование — шаг 20 */}
+              {!!rooms?.length && (
+                <svg
+                  className="room-layer"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }}
+                >
+                  {rooms.map(r => (
+                    <polygon
+                      key={r.id}
+                      data-room-id={r.id}
+                      points={r.contour.map(([x, y]) => `${x},${y}`).join(' ')}
+                      fill="rgba(31, 111, 235, 0.10)"
+                      stroke="#1f6feb"
+                      strokeWidth={2}
+                      vectorEffect="non-scaling-stroke"
+                      strokeLinejoin="round"
+                    />
+                  ))}
+                </svg>
+              )}
+              {rooms?.map(r => {
+                const [cx, cy] = contourCenter(r.contour)
+                return (
+                  <div
+                    key={r.id}
+                    className="room-label"
+                    style={{
+                      position: 'absolute',
+                      left: `${cx}%`,
+                      top: `${cy}%`,
+                      transform: `translate(-50%, -50%) scale(${1 / t.s})`,
+                      pointerEvents: 'none',
+                      color: '#1f6feb',
+                      fontWeight: 700,
+                      fontSize: 14,
+                      whiteSpace: 'nowrap',
+                      textShadow: '0 0 3px #fff, 0 0 3px #fff',
+                    }}
+                  >
+                    {[r.number, r.name].filter(Boolean).join(' ')}
+                  </div>
+                )
+              })}
               {shownPoints.map(({ p, n }) => {
                 // чужая точка: метка бледнее, под ней код автора (Р-38)
                 const other = !!people && !people.isMine(p.authorId)
@@ -215,6 +264,22 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
 
         {!selected && !adding && (
           <>
+            {/* ВРЕМЕННО (шаг 19б): проверка помещений до режима рисования. Убрать в шаге 20. */}
+            {mayEditRooms && sheet && (
+              <button
+                className="chip"
+                style={{ position: 'absolute', left: 12, top: 12, zIndex: 3, background: '#fff' }}
+                onClick={() => {
+                  // прямоугольник в середине листа, каждый следующий чуть ниже и правее
+                  const k = (rooms?.length ?? 0) % 5
+                  const x0 = 20 + k * 6
+                  const y0 = 20 + k * 6
+                  createRoom(sheet.projectId, sheet.id, [[x0, y0], [x0 + 30, y0], [x0 + 30, y0 + 20], [x0, y0 + 20]])
+                }}
+              >
+                Тест: добавить помещение
+              </button>
+            )}
             <div className="zoom-btns">
               <button className="icon-btn" aria-label="Приблизить" onClick={() => zoomBy(1.5)}>
                 <Icon name="plus" />

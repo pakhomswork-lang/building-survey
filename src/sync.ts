@@ -3,11 +3,12 @@
 // Какая правка записи уже на сервере, помнит поле pushedAt: если оно не равно updatedAt,
 // запись ждёт отправки. Поэтому ничего не теряется без сети: всё, что изменилось,
 // так и остаётся «ждёт», пока не уйдёт. Отправляем только свои записи.
-// Порядок важен: объект → листы (с картинками) → точки → записи о фото.
+// Порядок важен: объект → листы (с картинками) → помещения → точки → записи о фото.
+// Помещения в общем объекте правит только создатель объекта (Р-48), поэтому и они «свои».
 
 import { liveQuery } from 'dexie'
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import { adoptDeviceRecords, db, getAccountId, getMyIds, type Photo, type Point, type Project, type Sheet, type SheetImage, type SyncFields } from './db'
+import { adoptDeviceRecords, db, getAccountId, getMyIds, type Photo, type Point, type Project, type Room, type Sheet, type SheetImage, type SyncFields } from './db'
 import { explainNetwork, supabase } from './supabase'
 
 const BUCKET = 'sheets'
@@ -24,6 +25,7 @@ const sheetWaits = (s: Sheet) => waits(s) || (!s.deleted && !s.imagePushed)
 interface Pending {
   project: Project | null
   sheets: Sheet[]
+  rooms: Room[]
   points: Point[]
   photos: Photo[]
 }
@@ -31,20 +33,22 @@ interface Pending {
 /** Что из объекта ждёт отправки. myIds — аккаунт и id телефона (записи, сделанные без входа). */
 async function pendingIn(project: Project, myIds: Set<string>): Promise<Pending> {
   const mine = (r: SyncFields) => myIds.has(r.authorId)
-  const [sheets, points, photos] = await Promise.all([
+  const [sheets, rooms, points, photos] = await Promise.all([
     db.sheets.where('projectId').equals(project.id).toArray(),
+    db.rooms.where('projectId').equals(project.id).toArray(),
     db.points.where('projectId').equals(project.id).toArray(),
     db.photos.where('projectId').equals(project.id).toArray(),
   ])
   return {
     project: mine(project) && waits(project) ? project : null,
     sheets: sheets.filter(s => mine(s) && sheetWaits(s)),
+    rooms: rooms.filter(r => mine(r) && waits(r)),
     points: points.filter(p => mine(p) && waits(p)),
     photos: photos.filter(p => mine(p) && waits(p)),
   }
 }
 
-const countOf = (p: Pending) => (p.project ? 1 : 0) + p.sheets.length + p.points.length + p.photos.length
+const countOf = (p: Pending) => (p.project ? 1 : 0) + p.sheets.length + p.rooms.length + p.points.length + p.photos.length
 
 /** Сколько записей объекта ждёт отправки. Для строки на экране объекта. */
 export async function countPending(projectId: string): Promise<number> {
@@ -81,6 +85,15 @@ const pointRow = (p: Point) => ({
   comment: p.comment,
   room_id: p.roomId,
 })
+const roomRow = (r: Room) => ({
+  ...common(r),
+  project_id: r.projectId,
+  sheet_id: r.sheetId,
+  contour: r.contour,
+  number: r.number,
+  name: r.name,
+  comment: r.comment,
+})
 const photoRow = (p: Photo) => ({
   ...common(p),
   project_id: p.projectId,
@@ -107,7 +120,7 @@ async function upsert(table: string, rows: object[]) {
 }
 
 /** Отмечаем, что эта правка записи на сервере. Если запись успели поменять снова — не отмечаем. */
-async function markPushed(table: typeof db.points | typeof db.photos | typeof db.projects, records: SyncFields[]) {
+async function markPushed(table: typeof db.points | typeof db.photos | typeof db.projects | typeof db.rooms, records: SyncFields[]) {
   await db.transaction('rw', table, async () => {
     for (const r of records) {
       await (table as typeof db.points)
@@ -122,7 +135,7 @@ async function markPushed(table: typeof db.points | typeof db.photos | typeof db
 /** Отправляет записи пачками. Если пачку не приняли, пробуем по одной, чтобы одна плохая не держала остальные. */
 async function pushRecords<T extends SyncFields>(
   name: string,
-  table: typeof db.points | typeof db.photos,
+  table: typeof db.points | typeof db.photos | typeof db.rooms,
   records: T[],
   toRow: (r: T) => object,
   errors: string[],
@@ -192,6 +205,7 @@ async function pushProjectData(projectId: string, accountId: string, errors: str
       errors.push((e as Error).message)
     }
   }
+  await pushRecords('rooms', db.rooms, p.rooms, roomRow, errors)
   await pushRecords('points', db.points, p.points, pointRow, errors)
   await pushRecords('photos', db.photos, p.photos, photoRow, errors)
 }
