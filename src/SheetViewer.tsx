@@ -261,7 +261,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                       fill={roomColor(i)}
                       fillOpacity={r.id === roomId ? 0.3 : 0.12}
                       stroke={roomColor(i)}
-                      strokeWidth={r.id === roomId ? 3 : 2}
+                      strokeWidth={r.id === roomId ? 1.5 : 1}
                       vectorEffect="non-scaling-stroke"
                       strokeLinejoin="round"
                     />
@@ -272,8 +272,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                       fill="#14171c"
                       fillOpacity={0.08}
                       stroke="#14171c"
-                      strokeWidth={2}
-                      strokeDasharray="6 4"
+                      strokeWidth={1}
                       vectorEffect="non-scaling-stroke"
                     />
                   )}

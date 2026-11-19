@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import type { Room } from './db'
 import { Icon } from './Icon'
-import { roomTitle, updateRoom } from './rooms'
+import { deleteRoom, roomTitle, updateRoom } from './rooms'
 
 /** Поля помещения: номер, название, комментарий (Р-46). Кто не может править — только смотрит. */
 export function RoomPanel({ room, color, canEdit, onClose }: { room: Room; color: string; canEdit: boolean; onClose: () => void }) {
   const [number, setNumber] = useState(room.number)
   const [name, setName] = useState(room.name)
   const [comment, setComment] = useState(room.comment)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   async function save() {
     const changes = { number: number.trim(), name: name.trim(), comment: comment.trim() }
@@ -34,6 +35,26 @@ export function RoomPanel({ room, color, canEdit, onClose }: { room: Room; color
             <input id="room-name" className="field" value={name} onChange={e => setName(e.target.value)} placeholder="Например, Кухня" maxLength={200} />
             <label htmlFor="room-comment">Комментарий</label>
             <textarea id="room-comment" value={comment} onChange={e => setComment(e.target.value)} placeholder="Например, не было доступа" maxLength={2000} />
+            <div className="list" style={{ marginTop: 16 }}>
+              <button
+                className="item danger"
+                onClick={async () => {
+                  // первое нажатие спрашивает, второе удаляет
+                  if (!confirmDelete) {
+                    setConfirmDelete(true)
+                    return
+                  }
+                  await deleteRoom(room.id)
+                  onClose()
+                }}
+              >
+                <Icon name="trash" />
+                <div className="grow">
+                  <b>{confirmDelete ? 'Нажмите ещё раз, чтобы удалить' : 'Удалить помещение'}</b>
+                  <small>Точки останутся, помещение у них определится заново</small>
+                </div>
+              </button>
+            </div>
             <button className="primary-btn" style={{ marginTop: 16 }} onClick={save}>
               <Icon name="check" />
               Готово
