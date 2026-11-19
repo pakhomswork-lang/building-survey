@@ -48,7 +48,7 @@ export function PcProjects({ signedIn, version }: { signedIn: boolean; version: 
         ))}
       </div>
       <p className="pc-muted" style={{ marginTop: 40, fontSize: 12 }}>
-        Версия от {version}. <a href="../">Телефонная версия</a>
+        Версия {version}. <a href="../">Телефонная версия</a>
       </p>
     </main>
   )

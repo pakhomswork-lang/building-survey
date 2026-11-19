@@ -188,7 +188,7 @@ function App() {
           <p className="muted" style={{ marginTop: 32, fontSize: 12, lineHeight: '16px' }}>
             {profile.name}, код {profile.code}
             <br />
-            {storageText[storage]} Версия от {APP_VERSION}.
+            {storageText[storage]} Версия {APP_VERSION}.
           </p>
         </>
       )}

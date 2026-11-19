@@ -26,7 +26,8 @@
 - Код в `src/`. Главное: `db.ts` (модель данных и функции записи), `App.tsx` (экраны), `useHashRoute.ts` (переходы через `#/…`), `SheetViewer.tsx` + `usePanZoom.ts` (лист и точки), `PointPanel.tsx` / `CameraView.tsx` (съёмка), `photos.ts` / `photoFolder.ts` (сохранение фото и запись в папку телефона), `PhotoGallery.tsx` / `PhotoView.tsx` / `ProjectPhotos.tsx` (просмотр). Сервер — Supabase (Р-28): `supabase.ts` (подключение), `account.ts` / `AccountForm.tsx` (вход); SQL для базы в папке `supabase/` (`01_…`, `02_…` запускаются по порядку в SQL Editor).
 - Команды: `npm run dev` (адрес http://localhost:5173/building-survey/), `npm run build`, `npm run lint`.
 - Публикация: push в `main` → GitHub Actions → https://pakhomswork-lang.github.io/building-survey/ (около минуты). Репозиторий https://github.com/pakhomswork-lang/building-survey. `gh` лежит в `C:\Program Files\GitHub CLI`.
-- Версия (время сборки) видна внизу главного экрана: по ней владелец проверяет, что телефон получил обновление.
+- Версия видна внизу главного экрана: номер и время сборки, например «0.20а.2 от 19.11, 17:40». По ней владелец проверяет, что телефон получил обновление.
+- Номер версии (Р-50) — `APP_RELEASE` в `src/version.ts`, вида `0.<шаг>.<итерация>`: 0 — до релиза (после релиза 1); шаг — текущий шаг из ROADMAP (20а, 20б…); итерация — 0, когда шаг только сделан, и +1 за каждую доработку по замечаниям владельца. **Меняй номер перед каждой публикацией** и называй его в «Что проверить на телефоне».
 - Новые таблицы в базе — только через новую `db.version(N)`, старые данные должны сохраняться.
 
 ## Как проверять
