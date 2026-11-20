@@ -39,6 +39,21 @@ export function usePanZoom(
   const pointers = useRef(new Map<number, { x: number; y: number }>())
   const tap = useRef<{ x: number; y: number; time: number; target: EventTarget | null; valid: boolean } | null>(null)
 
+  // «Лишний щелчок»: после касания телефон шлёт ещё и click в то же место, чуть позже.
+  // Если нажатие открыло меню, этот click попадал в меню (закрывал его или выбирал строку).
+  // Полсекунды после нажатия по листу гасим такие щелчки вне листа.
+  const suppressClicksUntil = useRef(0)
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (Date.now() < suppressClicksUntil.current && !viewportRef.current?.contains(e.target as Node)) {
+        e.stopPropagation()
+        e.preventDefault()
+      }
+    }
+    document.addEventListener('click', onClick, true)
+    return () => document.removeEventListener('click', onClick, true)
+  }, [viewportRef])
+
   // берём числа, а не сам объект: объект создаётся заново при каждой отрисовке,
   // и тогда лист сбрасывался бы в исходный масштаб
   const contentW = content?.w
@@ -148,6 +163,7 @@ export function usePanZoom(
     const tp = tap.current
     tap.current = null
     if (!tp?.valid || Date.now() - tp.time > TAP_TIME_LIMIT || !content) return
+    suppressClicksUntil.current = Date.now() + 500
     const cur = tRef.current
     onTap({
       px: (((tp.x - cur.x) / cur.s) / content.w) * 100,
