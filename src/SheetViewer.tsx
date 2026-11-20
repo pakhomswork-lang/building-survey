@@ -9,6 +9,7 @@ import { PointPanel } from './PointPanel'
 import { RoomPanel } from './RoomPanel'
 import { canEditRooms, contourCenter, createRoom, roomAt, roomColor, roomsOfSheet, roomTitle, updateRoom, rectContour, midpoint, CLOSE_PX } from './rooms'
 import { snapPoint } from './roomSnap'
+import { createMark, deleteMark, listsOfProject, marksOfSheet, setMarkItem } from './lists'
 import { markerSize, ringBackground } from './markers'
 import { typeColor } from './typeColor'
 import { usePanZoom, type Tap } from './usePanZoom'
@@ -92,6 +93,18 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
     }
   }
   const roomsVisible = roomMode || showRooms
+
+  // режим «Списки» (шаг 25, Р-56): отметки одного списка, тык по плану ставит отметку выбранной позиции
+  const lists = useLiveQuery(() => (sheet ? listsOfProject(sheet.projectId) : Promise.resolve([])), [sheet?.projectId])
+  const [listId, setListId] = useState<string | null>(null)
+  const [choosingList, setChoosingList] = useState(false)
+  const [itemId, setItemId] = useState<string | null>(null)
+  const [markId, setMarkId] = useState<string | null>(null)
+  const activeList = lists?.find(l => l.id === listId) ?? null
+  const listMode = !!activeList
+  const activeItem = activeList?.items.find(i => i.id === itemId) ?? activeList?.items[0] ?? null
+  const marks = useLiveQuery(() => (listId ? marksOfSheet(sheetId, listId) : Promise.resolve([])), [sheetId, listId])
+  const openMark = marks?.find(m => m.id === markId) ?? null
   const people = usePeople()
 
   // размер области под лист: от него зависит, каким лист будет «вписан в экран»
@@ -223,6 +236,25 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
   }
 
   async function handleTap(tap: Tap) {
+    if (listMode && activeList) {
+      // нажали на отметку (или рядом) — открыть её, иначе поставить новую
+      const hitEl = (tap.target as HTMLElement | null)?.closest?.('[data-mark-id]')
+      let hit = hitEl?.getAttribute('data-mark-id') ?? null
+      if (!hit && marks && content) {
+        let bestD = 18
+        for (const m of marks) {
+          const d = Math.hypot(((m.x - tap.px) / 100) * content.w * t.s, ((m.y - tap.py) / 100) * content.h * t.s)
+          if (d < bestD) {
+            bestD = d
+            hit = m.id
+          }
+        }
+      }
+      if (hit) return setMarkId(hit)
+      if (!sheet || !activeItem || tap.px < 0 || tap.px > 100 || tap.py < 0 || tap.py > 100) return
+      await createMark(sheet.projectId, sheet.id, activeList.id, activeItem.id, tap.px, tap.py)
+      return
+    }
     if (roomMode) {
       // правка контура: нажатие выбирает угол или «+» на середине стены
       if (editing) {
@@ -351,7 +383,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
             </span>
           </button>
         </div>
-        {!selected && !roomMode && (
+        {!selected && !roomMode && !listMode && (
           <div className="chips">
             <button className={'chip' + (filter === 'all' ? ' on' : '')} onClick={() => setFilter('all')}>
               Все <em>{photos?.length ?? 0}</em>
@@ -419,6 +451,16 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
             ) : (
               <button onClick={() => setRoomMode(false)}>Выйти</button>
             )}
+          </div>
+        )}
+        {listMode && activeList && (
+          <div className="hint-bar">
+            <span style={{ flex: 1 }}>
+              <b style={{ fontWeight: 500 }}>{activeList.name || 'Список'}</b>
+              <br />
+              <small style={{ opacity: 0.8 }}>Нажмите на план — отметка «{activeItem?.name ?? '…'}»</small>
+            </span>
+            <button onClick={() => setListId(null)}>Выйти</button>
           </div>
         )}
         {adding && (
@@ -574,6 +616,19 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                     </div>
                   )
                 })}
+              {/* отметки выбранного списка (шаг 25) */}
+              {listMode &&
+                marks?.map(m => {
+                  const item = activeList!.items.find(i => i.id === m.itemId)
+                  return (
+                    <div
+                      key={m.id}
+                      data-mark-id={m.id}
+                      className={'mark' + (m.id === markId ? ' on' : '')}
+                      style={{ left: `${m.x}%`, top: `${m.y}%`, background: item?.color ?? '#868e96', transform: `translate(-50%, -50%) scale(${1 / t.s})` }}
+                    />
+                  )
+                })}
               {shownPoints.map(({ p, n }) => {
                 // чужая точка: метка бледнее, под ней код автора (Р-38)
                 const other = !!people && !people.isMine(p.authorId)
@@ -584,7 +639,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                   className={'marker' + (p.id === selectedId ? ' on' : '') + (other ? ' other' : '')}
                   style={{
                     // в режиме «Помещения» точки бледные и не нажимаются
-                    ...(roomMode ? { opacity: 0.35, pointerEvents: 'none' as const } : null),
+                    ...(roomMode || listMode ? { opacity: 0.35, pointerEvents: 'none' as const } : null),
                     left: `${p.x}%`,
                     top: `${p.y}%`,
                     width: size,
@@ -619,11 +674,18 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
 
         {!selected && !adding && (
           <>
-            {!roomMode && (mayEditRooms || !!rooms?.length) && (
+            {!roomMode && !listMode && (mayEditRooms || !!rooms?.length || !!lists?.length) && (
               <div className="room-mode-btns">
-                <button className="chip" onClick={() => setRoomMode(true)}>
-                  Помещения{rooms?.length ? <em>{rooms.length}</em> : null}
-                </button>
+                {(mayEditRooms || !!rooms?.length) && (
+                  <button className="chip" onClick={() => setRoomMode(true)}>
+                    Помещения{rooms?.length ? <em>{rooms.length}</em> : null}
+                  </button>
+                )}
+                {!!lists?.length && (
+                  <button className="chip" onClick={() => setChoosingList(true)}>
+                    Списки
+                  </button>
+                )}
                 {!!rooms?.length && (
                   <button className={'chip' + (showRooms ? ' on' : '')} aria-pressed={showRooms} onClick={toggleShowRooms}>
                     Контуры
@@ -639,7 +701,25 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
                 <Icon name="minus" />
               </button>
             </div>
-            {!roomMode && (
+            {listMode && activeList && (
+              <div className="mark-items" role="radiogroup" aria-label="Позиция для отметок">
+                {activeList.items.map((it, i) => (
+                  <button
+                    key={it.id}
+                    role="radio"
+                    aria-checked={it.id === activeItem?.id}
+                    className={'mark-item' + (it.id === activeItem?.id ? ' on' : '')}
+                    onClick={() => setItemId(it.id)}
+                  >
+                    <i style={{ background: it.color }} />
+                    {i + 1}. {it.name}
+                    <em>{marks?.filter(m => m.itemId === it.id).length ?? 0}</em>
+                  </button>
+                ))}
+                {activeList.items.length === 0 && <span className="muted">В списке нет позиций. Добавьте их в «Списки» объекта.</span>}
+              </div>
+            )}
+            {!roomMode && !listMode && (
               <button className="add-point" onClick={() => setAdding(true)}>
                 <Icon name="pin" />
                 Поставить точку
@@ -703,6 +783,85 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
           </>
         )}
       </div>
+
+      {/* выбор списка для отметок */}
+      {choosingList && (
+        <>
+          <div className="scrim" onClick={() => setChoosingList(false)} />
+          <div className="bottom-sheet" role="dialog" aria-label="Выбрать список">
+            <div className="grip" />
+            <b style={{ fontWeight: 500, fontSize: 18 }}>Отметки по списку</b>
+            <div className="list" style={{ marginTop: 12 }}>
+              {lists?.map(l => (
+                <button
+                  key={l.id}
+                  className="item"
+                  onClick={() => {
+                    setChoosingList(false)
+                    setRoomMode(false)
+                    setSelectedId(null)
+                    setMarkId(null)
+                    setItemId(l.items[0]?.id ?? null)
+                    setListId(l.id)
+                  }}
+                >
+                  <div className="grow">
+                    <b>{l.name || 'Без названия'}</b>
+                    <span className="list-swatches">
+                      {l.items.slice(0, 12).map(i => (
+                        <i key={i.id} className="type-dot" style={{ background: i.color }} />
+                      ))}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* отметка: сменить позицию или удалить */}
+      {openMark && activeList && (
+        <>
+          <div className="scrim" onClick={() => setMarkId(null)} />
+          <div className="bottom-sheet" role="dialog" aria-label="Отметка">
+            <div className="grip" />
+            <b style={{ fontWeight: 500, fontSize: 18 }}>Отметка</b>
+            <div className="list" style={{ marginTop: 12 }}>
+              {activeList.items.map(it => (
+                <button
+                  key={it.id}
+                  className={'item' + (it.id === openMark.itemId ? ' on' : '')}
+                  onClick={async () => {
+                    if (it.id !== openMark.itemId) await setMarkItem(openMark.id, it.id)
+                    setMarkId(null)
+                  }}
+                >
+                  <i className="type-dot" style={{ background: it.color, width: 14, height: 14, margin: 5 }} />
+                  <div className="grow">
+                    <b>{it.name}</b>
+                  </div>
+                  {it.id === openMark.itemId && <Icon name="check" />}
+                </button>
+              ))}
+            </div>
+            <div className="list" style={{ marginTop: 16 }}>
+              <button
+                className="item danger"
+                onClick={async () => {
+                  await deleteMark(openMark.id)
+                  setMarkId(null)
+                }}
+              >
+                <Icon name="trash" />
+                <div className="grow">
+                  <b>Удалить отметку</b>
+                </div>
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {openRoom && (
         <RoomPanel

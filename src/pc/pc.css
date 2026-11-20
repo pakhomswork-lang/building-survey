@@ -754,3 +754,59 @@
 .pc-lists-page .lists-panel {
   max-width: 640px;
 }
+
+/* отметки на компьютере (шаг 25) */
+.pc-mark-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.pc-mark-item i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.pc-mark-item em {
+  font-style: normal;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.pc-mark-item.on {
+  border-color: var(--text);
+  box-shadow: 0 0 0 1px var(--text);
+}
+.pc-mark-panel {
+  position: absolute;
+  z-index: 3;
+  right: 12px;
+  top: 56px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+.pc-mark-panel select {
+  padding: 4px 8px;
+}
+.pc-mark-select {
+  display: block;
+  margin-top: 6px;
+  max-width: 200px;
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.pc-mark-select.on {
+  background: var(--text);
+  color: #fff;
+}

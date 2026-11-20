@@ -1339,3 +1339,62 @@ button.point-room {
   gap: 8px;
   padding: 8px 0 4px 28px;
 }
+
+/* отметки на плане (шаг 25) */
+.mark {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(20, 23, 28, 0.35), 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.mark.on {
+  box-shadow: 0 0 0 2px var(--text), 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.mark-items {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
+  background: linear-gradient(transparent, var(--bg) 30%);
+}
+.mark-item {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 14px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+}
+.mark-item i {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+.mark-item em {
+  font-style: normal;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.mark-item.on {
+  border-color: var(--text);
+  box-shadow: 0 0 0 1.5px var(--text), 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+.mark-items {
+  scrollbar-width: none;
+}

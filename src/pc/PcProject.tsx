@@ -17,6 +17,7 @@ import { PcSheet } from './PcSheet'
 import { PcRoomPanel } from './PcRoomPanel'
 import { PcRoomTable } from './PcRoomTable'
 import { ListsPanel } from '../ListsPanel'
+import { listsOfProject } from '../lists'
 import { canEditRooms, pointRoomText, roomOfPoint, roomsOfProject, roomTitle, setPointRoom } from '../rooms'
 import { buildPhotoCsv, csvFileName, saveTextFile } from './exportPhotos'
 import { attachPdf, removePdf } from './sheetPdf'
@@ -76,6 +77,9 @@ export function PcProject({ projectId }: { projectId: string }) {
     }
   }
   const myIds = useLiveQuery(() => getMyIds(), [])
+  // отметки на плане (шаг 25): по какому списку
+  const lists = useLiveQuery(() => listsOfProject(projectId), [projectId])
+  const [markListId, setMarkListId] = useState<string | null>(null)
 
   // номер точки на листе — по порядку постановки, как на самом листе
   const pointNumber = useMemo(() => {
@@ -289,10 +293,33 @@ export function PcProject({ projectId }: { projectId: string }) {
                   setRoomMode(!roomMode)
                   setRoomId(null)
                   setEditId(null)
+                  setMarkListId(null)
                 }}
               >
                 Помещения
               </button>
+              {!!lists?.length && (
+                <select
+                  className={'pc-mark-select' + (markListId ? ' on' : '')}
+                  value={markListId ?? ''}
+                  title="Ставить отметки по своему списку: щелчок по листу — отметка выбранной позиции"
+                  onChange={e => {
+                    setMarkListId(e.target.value || null)
+                    if (e.target.value) {
+                      setRoomMode(false)
+                      setRoomId(null)
+                      setEditId(null)
+                    }
+                  }}
+                >
+                  <option value="">Отметки: нет</option>
+                  {lists.map(l => (
+                    <option key={l.id} value={l.id}>
+                      Отметки: {l.name || 'без названия'}
+                    </option>
+                  ))}
+                </select>
+              )}
               <SheetPdfButton key={sheet.id} sheetId={sheet.id} />
             </div>
           )}
@@ -327,6 +354,7 @@ export function PcProject({ projectId }: { projectId: string }) {
                 canEditRooms={mayEditRooms}
                 editId={editId}
                 showRooms={showRooms}
+                markList={lists?.find(l => l.id === markListId) ?? null}
                 onEditDone={() => {
                   setRoomId(editId)
                   setEditId(null)
@@ -336,7 +364,9 @@ export function PcProject({ projectId }: { projectId: string }) {
               <p className="pc-muted pc-center">В объекте нет листов.</p>
             )}
             <div className="pc-hint">
-              {roomMode
+              {markListId
+                ? 'Щелчок по листу — отметка выбранной позиции · щелчок по отметке — сменить позицию или удалить · правый щелчок по отметке — удалить'
+                : roomMode
                 ? 'Колесо — приблизить · тащить мышью — двигать лист · щелчок по помещению — его поля'
                 : 'Колесо — приблизить · тащить мышью — двигать лист · щелчок по точке — её фото'}
             </div>

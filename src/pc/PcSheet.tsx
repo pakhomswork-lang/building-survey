@@ -1,10 +1,11 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react'
-import { db, type Photo } from '../db'
+import { db, type List, type Photo } from '../db'
 import { usePeople } from '../people'
 import { markerSize, ringBackground } from '../markers'
 import { CLOSE_PX, contourCenter, createRoom, midpoint, rectContour, roomAt, roomColor, roomsOfSheet, roomTitle, updateRoom } from '../rooms'
 import { snapPoint, type Snap } from '../roomSnap'
+import { createMark, deleteMark, marksOfSheet, setMarkItem } from '../lists'
 import { useObjectUrl } from '../useObjectUrl'
 import type { PDFPageProxy, RenderTask } from 'pdfjs-dist'
 import { usePdfPage } from './sheetPdf'
@@ -43,6 +44,7 @@ export function PcSheet({
   editId = null,
   onEditDone = () => {},
   showRooms = false,
+  markList = null,
 }: {
   sheetId: string
   /** Отбор фото: на листе остаются точки, где есть подходящие фото. null — все точки. */
@@ -61,12 +63,21 @@ export function PcSheet({
   onEditDone?: () => void
   /** Показывать контуры помещений и вне режима «Помещения» (шаг 22). */
   showRooms?: boolean
+  /** Список, по которому ставят отметки (шаг 25). null — режим отметок выключен. */
+  markList?: List | null
 }) {
   const image = useLiveQuery(() => db.sheetImages.get(sheetId), [sheetId])
   const sheet = useLiveQuery(() => db.sheets.get(sheetId), [sheetId])
   const points = useLiveQuery(async () => (await db.points.where('sheetId').equals(sheetId).sortBy('createdAt')).filter(p => !p.deleted), [sheetId])
   const photos = useLiveQuery(async () => (await db.photos.where('sheetId').equals(sheetId).toArray()).filter(p => !p.deleted), [sheetId])
   const rooms = useLiveQuery(() => roomsOfSheet(sheetId), [sheetId])
+  // отметки выбранного списка (шаг 25, Р-56)
+  const listMode = !!markList && !roomMode
+  const marks = useLiveQuery(() => (markList ? marksOfSheet(sheetId, markList.id) : Promise.resolve([])), [sheetId, markList?.id])
+  const [itemId, setItemId] = useState<string | null>(null)
+  const [markId, setMarkId] = useState<string | null>(null)
+  const activeItem = markList?.items.find(i => i.id === itemId) ?? markList?.items[0] ?? null
+  const openMark = marks?.find(m => m.id === markId) ?? null
   const url = useObjectUrl(image?.blob)
   const people = usePeople()
   // исходный PDF листа, если указан на этом компьютере (Р-42)
@@ -315,6 +326,15 @@ export function PcSheet({
   function onPointerDown(e: PointerEvent<HTMLDivElement>) {
     e.preventDefault()
     e.currentTarget.setPointerCapture(e.pointerId)
+    if (listMode && e.button === 2) {
+      const hit = (e.target as HTMLElement).closest?.('[data-mark-id]')
+      if (hit) {
+        const id = hit.getAttribute('data-mark-id')!
+        if (id === markId) setMarkId(null)
+        deleteMark(id)
+        return
+      }
+    }
     // правка контура: нажали на угол или «+» — тащим угол, правой кнопкой по углу — удаляем
     if (editing) {
       const p = sheetPos(e)
@@ -352,6 +372,8 @@ export function PcSheet({
       if (editing) {
         const hit = p && handleAt(p)
         next = hit ? ('corner' in hit ? 'corner' : 'mid') : 'none'
+      } else if (listMode) {
+        next = (e.target as HTMLElement).closest?.('[data-mark-id]') ? 'point' : 'none'
       } else if (roomMode) {
         next = !drawing && p && rooms && roomAt(p[0], p[1], rooms) ? 'room' : 'none'
       } else {
@@ -388,6 +410,16 @@ export function PcSheet({
     drag.current = null
     setDragging(false)
     if (!d || d.moved || d.button !== 0) return
+    if (listMode && markList) {
+      // щелчок по отметке — открыть её, мимо — поставить новую отметку выбранной позиции
+      const hit = (d.target as HTMLElement).closest?.('[data-mark-id]')
+      if (hit) return setMarkId(hit.getAttribute('data-mark-id'))
+      const p = sheetPos(e)
+      if (!p || !sheet || !activeItem || p[0] < 0 || p[0] > 100 || p[1] < 0 || p[1] > 100) return
+      setMarkId(null)
+      createMark(sheet.projectId, sheet.id, markList.id, activeItem.id, p[0], p[1])
+      return
+    }
     if (roomMode) {
       if (drawing) {
         const raw = sheetPos(e)
@@ -443,7 +475,7 @@ export function PcSheet({
         cursor:
           dragging || dragCorner !== null
             ? 'grabbing'
-            : drawing
+            : drawing || (listMode && hover !== 'point')
               ? 'crosshair'
               : hover === 'corner'
                 ? 'move'
@@ -552,6 +584,21 @@ export function PcSheet({
                 </div>
               )
             })}
+          {listMode &&
+            marks?.map(m => (
+              <div
+                key={m.id}
+                data-mark-id={m.id}
+                title={markList!.items.find(i => i.id === m.itemId)?.name}
+                className={'mark' + (m.id === markId ? ' on' : '')}
+                style={{
+                  left: `${m.x}%`,
+                  top: `${m.y}%`,
+                  background: markList!.items.find(i => i.id === m.itemId)?.color ?? '#868e96',
+                  transform: 'translate(-50%, -50%)',
+                }}
+              />
+            ))}
           {shown.map(({ p, n }) => {
             const other = !!people && !people.isMine(p.authorId)
             return (
@@ -570,7 +617,7 @@ export function PcSheet({
                   ...({ '--ring': ringBackground(photosOf(p.id)) } as CSSProperties),
                   cursor: 'pointer',
                   // в режиме «Помещения» точки бледные и не нажимаются
-                  ...(roomMode ? { opacity: 0.35, pointerEvents: 'none' as const } : null),
+                  ...(roomMode || listMode ? { opacity: 0.35, pointerEvents: 'none' as const } : null),
                 }}
               >
                 <span style={{ fontSize: Math.round(size * 0.5) }}>{n}</span>
@@ -582,6 +629,44 @@ export function PcSheet({
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* отметки: позиции списка и выбранная отметка (шаг 25) */}
+      {listMode && markList && (
+        <div className="pc-room-bar" onPointerDown={e => e.stopPropagation()}>
+          {markList.items.map((it, i) => (
+            <button key={it.id} className={'pc-btn pc-mark-item' + (it.id === activeItem?.id ? ' on' : '')} onClick={() => setItemId(it.id)}>
+              <i style={{ background: it.color }} />
+              {i + 1}. {it.name}
+              <em>{marks?.filter(m => m.itemId === it.id).length ?? 0}</em>
+            </button>
+          ))}
+          {markList.items.length === 0 && <span className="pc-room-hint">В списке нет позиций — добавьте их во вкладке «Списки».</span>}
+        </div>
+      )}
+      {listMode && markList && openMark && (
+        <div className="pc-mark-panel" onPointerDown={e => e.stopPropagation()}>
+          <b>Отметка</b>
+          <select className="field" value={openMark.itemId} onChange={e => setMarkItem(openMark.id, e.target.value)}>
+            {markList.items.map(it => (
+              <option key={it.id} value={it.id}>
+                {it.name}
+              </option>
+            ))}
+          </select>
+          <button
+            className="pc-btn pc-danger"
+            onClick={() => {
+              deleteMark(openMark.id)
+              setMarkId(null)
+            }}
+          >
+            Удалить
+          </button>
+          <button className="pc-btn" onClick={() => setMarkId(null)}>
+            Закрыть
+          </button>
         </div>
       )}
 

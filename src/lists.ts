@@ -4,7 +4,7 @@
 // на позицию, поэтому переименование и смена цвета отметки не ломают.
 
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, getAccountId, getMyIds, getUserId, newRecordFields, type List, type ListItem, type ListTemplate } from './db'
+import { db, getAccountId, getMyIds, getUserId, newRecordFields, type List, type ListItem, type ListTemplate, type Mark } from './db'
 
 /** Цвета позиций: хорошо различимые на белом чертеже. */
 export const LIST_COLORS = [
@@ -105,4 +105,25 @@ export async function adoptDeviceTemplates() {
 /** Сколько списков в объекте — для пункта на экране объекта. */
 export function useListCount(projectId: string) {
   return useLiveQuery(async () => (await db.lists.where('projectId').equals(projectId).toArray()).filter(l => !l.deleted).length, [projectId])
+}
+
+// --- отметки на плане (шаг 25, Р-56) ---
+
+/** Живые отметки одного списка на листе. */
+export async function marksOfSheet(sheetId: string, listId: string): Promise<Mark[]> {
+  return (await db.marks.where('sheetId').equals(sheetId).toArray()).filter(m => !m.deleted && m.listId === listId)
+}
+
+export async function createMark(projectId: string, sheetId: string, listId: string, itemId: string, x: number, y: number): Promise<Mark> {
+  const mark: Mark = { ...(await newRecordFields()), projectId, sheetId, listId, itemId, x, y }
+  await db.marks.add(mark)
+  return mark
+}
+
+export async function setMarkItem(markId: string, itemId: string) {
+  await db.marks.update(markId, { itemId, updatedAt: Date.now() })
+}
+
+export async function deleteMark(markId: string) {
+  await db.marks.update(markId, { deleted: true, updatedAt: Date.now() })
 }
