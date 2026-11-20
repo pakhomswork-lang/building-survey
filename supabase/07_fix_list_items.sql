@@ -19,3 +19,7 @@ language sql immutable set search_path = '' as $$
         or length(e ->> 'color') > 20
     )
 $$;
+
+-- Самопроверка: после Run внизу должна появиться таблица с одной строкой.
+-- В столбце «исправление_на_месте» должно быть true. Скрипт можно запускать повторно.
+select public.list_items_ok('[{"id": "x", "name": "без цвета"}]'::jsonb) = false as исправление_на_месте;
