@@ -128,7 +128,10 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
 
   // нажатие по листу обрабатывает handleTap ниже (ему нужны функции, которые появляются после usePanZoom)
   const tapRef = useRef<(tap: Tap) => void>(() => {})
-  const { t, zoomBy, centerOn, handlers } = usePanZoom(viewportRef, content, maxScale, tap => tapRef.current(tap), drawing || editing)
+  const placeMark = sheet && activeList && activeItem
+    ? (x: number, y: number) => createMark(sheet.projectId, sheet.id, activeList.id, activeItem.id, x, y)
+    : undefined
+  const { t, lens, zoomBy, centerOn, handlers } = usePanZoom(viewportRef, content, maxScale, tap => tapRef.current(tap), drawing || editing, placeMark)
 
   // где на листе сейчас прицел (середина экрана), в процентах листа
   const rawAim: [number, number] | null =
@@ -251,8 +254,6 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
         }
       }
       if (hit) return setMarkId(hit)
-      if (!sheet || !activeItem || tap.px < 0 || tap.px > 100 || tap.py < 0 || tap.py > 100) return
-      await createMark(sheet.projectId, sheet.id, activeList.id, activeItem.id, tap.px, tap.py)
       return
     }
     if (roomMode) {
@@ -458,7 +459,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
             <span style={{ flex: 1 }}>
               <b style={{ fontWeight: 500 }}>{activeList.name || 'Список'}</b>
               <br />
-              <small style={{ opacity: 0.8 }}>Нажмите на план — отметка «{activeItem?.name ?? '…'}»</small>
+              <small style={{ opacity: 0.8 }}>Удерживайте план, наведите лупу и отпустите</small>
             </span>
             <button onClick={() => setListId(null)}>Выйти</button>
           </div>
@@ -473,6 +474,7 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
         <div
           ref={viewportRef}
           {...handlers}
+          onContextMenu={listMode ? e => e.preventDefault() : undefined}
           style={{ position: 'absolute', inset: 0, overflow: 'hidden', touchAction: 'none', cursor: adding ? 'crosshair' : 'grab', background: drawing || editing ? '#e9ecef' : undefined }}
         >
           {content && url && (
@@ -664,6 +666,15 @@ export function SheetViewer({ sheetId, onBack }: { sheetId: string; onBack: () =
           )}
         </div>
 
+        {lens && vp && content && url && listMode && (
+          <div aria-hidden="true" className="mark-lens" style={{
+            left: Math.max(52, Math.min(vp.w - 52, lens.x)),
+            top: Math.max(52, Math.min(vp.h - 52, lens.y < 125 ? lens.y + 78 : lens.y - 78)),
+            backgroundImage: `url("${url}")`,
+            backgroundSize: `${content.w * t.s * 2}px ${content.h * t.s * 2}px`,
+            backgroundPosition: `${50 - (lens.x - t.x) * 2}px ${50 - (lens.y - t.y) * 2}px`,
+          }} />
+        )}
         {/* прицел в центре экрана (Р-49) */}
         {aiming && (
           <div className="room-aim" aria-hidden="true">

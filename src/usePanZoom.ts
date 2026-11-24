@@ -32,7 +32,12 @@ export function usePanZoom(
    * Нужен для прицела в центре экрана при рисовании помещений (Р-49).
    */
   free = false,
+  onPlace?: (px: number, py: number) => void,
 ) {
+  const [lens, setLens] = useState<{ x: number; y: number } | null>(null)
+  const holding = useRef(false)
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(timer.current), [])
   const [t, setT] = useState<Transform>({ x: 0, y: 0, s: 1 })
   const tRef = useRef(t)
   const freeRef = useRef(free)
@@ -128,11 +133,23 @@ export function usePanZoom(
   }
 
   function onPointerDown(e: PointerEvent) {
+    clearTimeout(timer.current)
+    holding.current = false
+    setLens(null)
     e.currentTarget.setPointerCapture(e.pointerId)
     const p = local(e)
     pointers.current.set(e.pointerId, p)
     tap.current =
       pointers.current.size === 1 ? { x: p.x, y: p.y, time: Date.now(), target: e.target, valid: true } : null
+    if (tap.current && onPlace && content && e.button === 0) {
+      const id = e.pointerId
+      timer.current = setTimeout(() => {
+        const pos = pointers.current.get(id)
+        if (!pos || !tap.current?.valid) return
+        holding.current = true
+        setLens(pos)
+      }, 350)
+    }
   }
 
   function onPointerMove(e: PointerEvent) {
@@ -142,7 +159,12 @@ export function usePanZoom(
     const others = [...pointers.current.entries()].filter(([id]) => id !== e.pointerId).map(([, v]) => v)
     pointers.current.set(e.pointerId, p)
 
+    if (holding.current) {
+      setLens(p)
+      return
+    }
     if (tap.current && Math.hypot(p.x - tap.current.x, p.y - tap.current.y) > TAP_MOVE_LIMIT) tap.current.valid = false
+    if (onPlace && tap.current?.valid) return
 
     if (others.length === 0) {
       const cur = tRef.current
@@ -159,9 +181,23 @@ export function usePanZoom(
   }
 
   function onPointerUp(e: PointerEvent) {
+    clearTimeout(timer.current)
     pointers.current.delete(e.pointerId)
     const tp = tap.current
     tap.current = null
+    if (holding.current) {
+      holding.current = false
+      setLens(null)
+      const p = local(e)
+      const cur = tRef.current
+      const vp = viewportRef.current
+      if (content && vp && p.x >= 0 && p.y >= 0 && p.x <= vp.clientWidth && p.y <= vp.clientHeight) {
+        const px = (p.x - cur.x) / (cur.s * content.w) * 100
+        const py = (p.y - cur.y) / (cur.s * content.h) * 100
+        if (px >= 0 && py >= 0 && px <= 100 && py <= 100) onPlace?.(px, py)
+      }
+      return
+    }
     if (!tp?.valid || Date.now() - tp.time > TAP_TIME_LIMIT || !content) return
     suppressClicksUntil.current = Date.now() + 500
     const cur = tRef.current
@@ -173,6 +209,9 @@ export function usePanZoom(
   }
 
   function onPointerCancel(e: PointerEvent) {
+    clearTimeout(timer.current)
+    holding.current = false
+    setLens(null)
     pointers.current.delete(e.pointerId)
     tap.current = null
   }
@@ -196,5 +235,5 @@ export function usePanZoom(
     apply({ ...cur, x: vp.clientWidth / 2 - (px / 100) * contentW * cur.s, y: vp.clientHeight / 2 - (py / 100) * contentH * cur.s })
   }
 
-  return { t, zoomBy, centerOn, handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onWheel } }
+  return { t, lens, zoomBy, centerOn, handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onWheel } }
 }
