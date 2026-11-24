@@ -29,8 +29,33 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - uses: actions/upload-pages-artifact@v5
+      - id: upload
+        uses: actions/upload-pages-artifact@v5
         with:
           path: dist
       - id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/github-script@v8
+        env:
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact_id }}
+        with:
+          script: |
+            const repo = context.repo
+            const { data } = await github.request('POST /repos/{owner}/{repo}/pages/deployments', {
+              ...repo,
+              artifact_id: Number(process.env.ARTIFACT_ID),
+              pages_build_version: context.sha,
+              oidc_token: await core.getIDToken()
+            })
+            core.setOutput('page_url', data.page_url)
+            for (let attempt = 0; attempt < 60; attempt++) {
+              await new Promise(resolve => setTimeout(resolve, 10000))
+              const result = await github.request('GET /repos/{owner}/{repo}/pages/deployments/{deployment_id}', {
+                ...repo, deployment_id: data.id
+              })
+              const status = result.data.status
+              if (status === 'succeed') return
+              if (!['queued', 'deployment_in_progress', 'deploying', 'updating_pages', 'syncing_files', 'purging_cdn'].includes(status)) {
+                throw new Error('Pages deployment status: ' + status)
+              }
+            }
+            throw new Error('Pages deployment timed out')
